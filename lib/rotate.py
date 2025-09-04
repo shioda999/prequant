@@ -3,30 +3,34 @@ from .get_module import *
 from .utils import *
 import torch
 
+SZ = 128
+
 def fuse_norm(norm, fcs):
     for fc in fcs:
         setattr(fc, "prev_dtype", fc.weight.dtype)
         fc.weight.data = norm.weight.double() * fc.weight.double()
+    setattr(norm, "prev_weight", norm.weight.data.clone())
     norm.weight.data = torch.ones_like(norm.weight)
 
-def defuse_norm(norm, fcs, p=2):
-    s = torch.concat([normalize(fc.weight.data) for fc in fcs]).reshape(-1, fcs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p).pow(0.5)
+def defuse_norm(norm, fcs, p=2, sz=SZ):
+    s = norm.prev_weight.reshape(sz, -1).abs().mean(dim=0)[None].expand((sz, -1)).reshape(-1).sqrt()
+    # s = torch.concat([normalize(fc.weight.data) for fc in fcs]).reshape(-1, fcs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p).pow(0.5)
     for fc in fcs:
         fc.weight.data = fc.weight.data.double().div(s).to(fc.prev_dtype)
         del fc.prev_dtype
     norm.weight.data = norm.weight.data.double().mul(s).to(norm.weight.dtype)
+    del norm.prev_weight
 
-def rotate_had(A, sz=1):
+def rotate_had(A, sz=SZ, t=False):
     N, M = A.weight.shape
     H = generate_hadamard_matrix(sz, A.weight.device)
+    if t: H = H.T
     A.weight.data = (A.weight.reshape(N, -1, sz).double() @ H).to(A.weight.dtype).reshape(N, M)
 
-def rotate_had_r(A, sz=1):
+def rotate_had_r(A, sz=SZ):
     N, M = A.weight.shape
     H = generate_hadamard_matrix(sz, A.weight.device)
     A.weight.data = (H.T[None] @ A.weight.reshape(-1, sz, M).double()).to(A.weight.dtype).reshape(N, M)
-    # print(A.weight.shape)
-    # A.weight.data = A.weight.data.reshape(N, M)
 
 def rotate_embedding(model):
     embed = get_embed(model)
@@ -54,21 +58,83 @@ def rotate_mlp(layer):
     fuse_norm(norm, [up, gate])
     rotate_had(up)
     rotate_had(gate)
-    rotate_had_r(down)
     defuse_norm(norm, [up, gate])
+    rotate_had_r(down)
 
 def rotate_head(model):
     norm, head = get_head_norm(model), get_head(model)
     fuse_norm(norm, [head])
-    rotate_had(head)
+    rotate_had(head, True)
     defuse_norm(norm, [head])
+
+class RotLinear(torch.nn.Linear):
+    def forward(self, x):
+        y = super().forward(x)
+        sz = SZ
+        H = generate_hadamard_matrix(sz, x.device)
+        x = (x.double().reshape(x.shape[0], x.shape[1], -1, sz) @ H.T).reshape(x.shape).to(x.dtype)
+        A = self.weight.data
+        # A = (A.reshape(A.shape[0], -1, sz).double() @ H).to(A.dtype).reshape(A.shape)
+        y2 = torch.nn.functional.linear(x, A)
+        # print(y[0,0,:20])
+        # print(y2[0,0,:20])
+        # input()
+        return y2
+    
+def add_rotate_for_norm(norm):
+    class RotNorm(norm.__class__):
+        def forward(self, x):
+            sz = SZ
+            H = generate_hadamard_matrix(sz, x.device)
+            x = (x.double().reshape(x.shape[0], x.shape[1], -1, sz) @ H.T).reshape(x.shape).to(x.dtype)
+            return super().forward(x)
+    norm.__class__ = RotNorm
+
+def add_rotate_post_linear(linear):
+    class RotLinear(linear.__class__):
+        def forward(self, x):
+            x = super().forward(x)
+            sz = SZ
+            H = generate_hadamard_matrix(sz, x.device)
+            x = (x.double().reshape(x.shape[0], x.shape[1], -1, sz) @ H).reshape(x.shape).to(x.dtype)
+            return x
+    linear.__class__ = RotLinear
+    
+def apply_rotlinear_qkv(layer):
+    qkv = [get_q(layer), get_k(layer), get_v(layer)]
+    for e in qkv:
+        e.__class__ = RotLinear
+
+def add_invrot_pre_norm(norm):
+    class RotNorm(norm.__class__):
+        def forward(self, x):
+            sz = SZ
+            H = generate_hadamard_matrix(sz, x.device)
+            x = (x.double().reshape(x.shape[0], x.shape[1], -1, sz) @ H).reshape(x.shape).to(x.dtype)
+            return super().forward(x)
+    norm.__class__ = RotNorm
 
 @torch.no_grad()
 def apply_rotate(model):
     rotate_embedding(model)
+    # add_invrot_pre_norm(get_head_norm(model))
     layers = get_layers(model)
     for l in layers:
         rotate_qkv(l)
         rotate_o(l)
         rotate_mlp(l)
     rotate_head(model)
+
+        # add_rotate_for_norm(get_pre_norm(l))
+        # rotate_qkv(l)
+        # rotate_o(l)
+        # add_rotate_post_linear(get_o(l))
+        
+        # add_rotate_for_norm(get_post_norm(l))
+        # rotate_mlp(l)
+        # add_rotate_post_linear(get_down(l))
+
+        # break
+    #     rotate_qkv(l)
+    #     rotate_o(l)
+    #     rotate_mlp(l)
