@@ -116,23 +116,23 @@ def add_invrot_pre_norm(norm):
 
 @torch.no_grad()
 def apply_rotate(model):
-    rotate_embedding(model)
+    # rotate_embedding(model)
     # add_invrot_pre_norm(get_head_norm(model))
     layers = get_layers(model)
     for l in layers:
+    #     rotate_qkv(l)
+    #     rotate_o(l)
+    #     rotate_mlp(l)
+    # rotate_head(model)
+
+        add_rotate_for_norm(get_pre_norm(l))
         rotate_qkv(l)
         rotate_o(l)
-        rotate_mlp(l)
-    rotate_head(model)
-
-        # add_rotate_for_norm(get_pre_norm(l))
-        # rotate_qkv(l)
-        # rotate_o(l)
-        # add_rotate_post_linear(get_o(l))
+        add_rotate_post_linear(get_o(l))
         
-        # add_rotate_for_norm(get_post_norm(l))
-        # rotate_mlp(l)
-        # add_rotate_post_linear(get_down(l))
+        add_rotate_for_norm(get_post_norm(l))
+        rotate_mlp(l)
+        add_rotate_post_linear(get_down(l))
 
         # break
     #     rotate_qkv(l)
