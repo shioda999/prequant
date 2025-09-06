@@ -69,7 +69,7 @@ def main():
     eval(args, model, tokenizer)
     # apply_smooth(model)
     # eval(args, model, tokenizer)
-    save_model(model, "model_smooth.safetensors")
+    # save_model(model, "model_smooth.safetensors")
     
 if __name__ == '__main__':
     main()

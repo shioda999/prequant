@@ -24,7 +24,7 @@ def defuse_norm(norm, fcs, p=2, sz=SZ):
 def rotate_had(A, sz=SZ, t=False):
     N, M = A.weight.shape
     H = generate_hadamard_matrix(sz, A.weight.device)
-    if t: H = H.T
+    if t is True: H = H.T
     A.weight.data = (A.weight.reshape(N, -1, sz).double() @ H).to(A.weight.dtype).reshape(N, M)
 
 def rotate_had_r(A, sz=SZ):
@@ -63,9 +63,14 @@ def rotate_mlp(layer):
 
 def rotate_head(model):
     norm, head = get_head_norm(model), get_head(model)
+    print(norm.weight.shape, norm.weight.dtype, head.weight.shape, head.weight.dtype)
     fuse_norm(norm, [head])
-    rotate_had(head, True)
+    print(norm.weight.shape, norm.weight.dtype, head.weight.shape, head.weight.dtype)
+    rotate_had(head)
+    rotate_had(head)
+    print(norm.weight.shape, norm.weight.dtype, head.weight.shape, head.weight.dtype)
     defuse_norm(norm, [head])
+    print(norm.weight.shape, norm.weight.dtype, head.weight.shape, head.weight.dtype)
 
 class RotLinear(torch.nn.Linear):
     def forward(self, x):
@@ -116,23 +121,26 @@ def add_invrot_pre_norm(norm):
 
 @torch.no_grad()
 def apply_rotate(model):
-    # rotate_embedding(model)
-    # add_invrot_pre_norm(get_head_norm(model))
+    rotate_embedding(model)
     layers = get_layers(model)
-    for l in layers:
-    #     rotate_qkv(l)
-    #     rotate_o(l)
-    #     rotate_mlp(l)
+    for i, l in enumerate(layers):
+        rotate_qkv(l)
+        rotate_vo(l)
+        rotate_o(l)
+        rotate_mlp(l)
+        # if i == len(layers) - 1:
+        #     add_rotate_post_linear(get_down(l))
+    # add_invrot_pre_norm(get_head_norm(model))
     # rotate_head(model)
 
-        add_rotate_for_norm(get_pre_norm(l))
-        rotate_qkv(l)
-        rotate_o(l)
-        add_rotate_post_linear(get_o(l))
+        # add_rotate_for_norm(get_pre_norm(l))
+        # rotate_qkv(l)
+        # rotate_o(l)
+        # add_rotate_post_linear(get_o(l))
         
-        add_rotate_for_norm(get_post_norm(l))
-        rotate_mlp(l)
-        add_rotate_post_linear(get_down(l))
+        # add_rotate_for_norm(get_post_norm(l))
+        # rotate_mlp(l)
+        # add_rotate_post_linear(get_down(l))
 
         # break
     #     rotate_qkv(l)
