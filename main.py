@@ -6,6 +6,8 @@ import argparse
 from safetensors.torch import save_model, load_model
 from lib.eval import eval_ppl
 from lib.convert import convert
+from lib.smooth import apply_smooth
+from lib.rotate import apply_rotate
 
 device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
 
@@ -61,24 +63,30 @@ def eval(args, model, tokenizer):
         model.seqlen = 2048
         eval_ppl(model, tokenizer, device, datasets=["wikitext2"])
 
+def smooth(args):
+    model, tokenizer = get_model(args.model)
+    apply_smooth()
+    save_model(model, "model_smooth.safetensors")
+
+def rotate(args):
+    model, tokenizer = get_model(args.model)
+    apply_smooth()
+    apply_rotate()
+    save_model(model, "model_rotate.safetensors")
+
 @torch.no_grad()
 def main():
     args = get_args()
     model, tokenizer = get_model(args.model)
-    # x = torch.zeros((1,2)).int()
-    # y = model.model(x)[0]
-    # print(y[...,:128])
+    
     convert(model)
-    # y2 = model.model(x)[0]
-    # print(y2[...,:128])
 
     eval(args, model, tokenizer)
-    # apply_smooth(model)
+    model.save_pretrained("model_smooth", safe_serialization=True)
+    tokenizer.save_pretrained("model_smooth")
+
+    # load_model(model, "model_smooth.safetensors")
     # eval(args, model, tokenizer)
-    save_model(model, "model_smooth.safetensors")
-
-    load_model(model, "model_smooth.safetensors")
-    eval(args, model, tokenizer)
     
 if __name__ == '__main__':
     main()

@@ -14,7 +14,7 @@ def fuse_norm(norm, fcs):
 
 def defuse_norm(norm, fcs, p=2, sz=SZ):
     # s = norm.prev_weight.reshape(sz, -1).abs().mean(dim=0)[None].expand((sz, -1)).reshape(-1).sqrt()
-    s = 1#torch.concat([normalize(fc.weight.data) for fc in fcs]).reshape(-1, fcs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p).pow(0.5)
+    s = torch.concat([normalize(fc.weight.data) for fc in fcs]).reshape(-1, fcs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p).pow(0.5)
     for fc in fcs:
         fc.weight.data = fc.weight.data.double().div(s).to(fc.prev_dtype)
         del fc.prev_dtype
