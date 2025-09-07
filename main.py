@@ -3,7 +3,7 @@ import torch
 # from datasets import load_dataset, l
 # oad_from_disk
 import argparse
-from safetensors.torch import save_model
+from safetensors.torch import save_model, load_model
 from lib.eval import eval_ppl
 from lib.convert import convert
 
@@ -25,7 +25,7 @@ def get_args():
     parser.add_argument('--eval_ppl', type=str2bool, default=False) # wikitext
     return parser.parse_args()
 
-def load_model(model_name):
+def get_model(model_name):
     kwargs = { "torch_dtype": torch.float16, "device_map": "auto" }
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(model_name, **kwargs)
@@ -64,12 +64,21 @@ def eval(args, model, tokenizer):
 @torch.no_grad()
 def main():
     args = get_args()
-    model, tokenizer = load_model(args.model)
+    model, tokenizer = get_model(args.model)
+    # x = torch.zeros((1,2)).int()
+    # y = model.model(x)[0]
+    # print(y[...,:128])
     convert(model)
+    # y2 = model.model(x)[0]
+    # print(y2[...,:128])
+
     eval(args, model, tokenizer)
     # apply_smooth(model)
     # eval(args, model, tokenizer)
-    # save_model(model, "model_smooth.safetensors")
+    save_model(model, "model_smooth.safetensors")
+
+    load_model(model, "model_smooth.safetensors")
+    eval(args, model, tokenizer)
     
 if __name__ == '__main__':
     main()
