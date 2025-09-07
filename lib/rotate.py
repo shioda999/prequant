@@ -3,7 +3,7 @@ from .get_module import *
 from .utils import *
 import torch
 
-SZ = 128
+SZ = 32
 
 def fuse_norm(norm, fcs):
     for fc in fcs:
