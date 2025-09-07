@@ -1,0 +1,100 @@
+from .get_module import *
+from .utils import *
+import torch
+
+# TODO
+# permute_mlp_v2
+# permute_vo
+
+def permute(A, perm):
+    t = A.weight.shape
+    A.weight.data = A.weight[..., perm]
+    assert t == A.weight.shape
+
+def permute_r(A, perm):
+    t = A.weight.shape
+    A.weight.data = A.weight[perm]
+    assert t == A.weight.shape
+
+def permute_embedding(model, perm):
+    embed = get_embed(model)
+    permute(embed, perm)
+
+def permute_qkv(layer, perm):
+    for e in [get_pre_norm(layer), get_q(layer), get_k(layer), get_v(layer)]:
+        permute(e, perm)
+
+def permute_vo(layer):
+    v, o = get_v(layer), get_o(layer)
+    dev = v.weight.device
+    mv, mo = calc_metric(v, t=True), calc_metric(o)
+    head_dim = 32
+    ratio = mo.shape[0] // mv.shape[0]
+    metric = mv + mo.reshape(ratio,-1).mean(dim=0)
+    perm = get_perm_v2(metric.reshape(-1, head_dim).mean(dim=0))
+    permute_r(v, (perm[None].expand(mv.shape[0]//head_dim,-1) + head_dim * torch.arange(mv.shape[0]//head_dim).to(dev)[:,None]).reshape(-1))
+    permute_r(o, (perm[None].expand(mo.shape[0]//head_dim,-1) + head_dim * torch.arange(mo.shape[0]//head_dim).to(dev)[:,None]).reshape(-1))
+    
+def permute_o(layer, perm):
+    o = get_o(layer)
+    permute_r(o, perm)
+
+def permute_mlp(layer, perm):
+    for e in [get_post_norm(layer), get_up(layer), get_gate(layer)]:
+        permute(e, perm)
+    permute_r(get_down(layer), perm)
+
+def permute_mlp_v2(layer):
+    up, gate, down = get_up(layer), get_gate(layer), get_down(layer)
+    metric = calc_metric(up, t=True) + calc_metric(gate, t=True) + calc_metric(down)
+    perm = get_perm_v2(metric)
+    for e in [up, gate]: permute_r(e, perm)
+    permute(down, perm)
+
+def permute_head(model, perm):
+    for e in [get_head_norm(model), get_head(model)]:
+        permute(e, perm)
+
+def get_perm(metric, k=32):
+    idx = metric.argsort(dim=-1, descending=True)
+    return idx
+
+def get_perm_v2(metric, k=32):
+    idx = metric.argsort(dim=-1, descending=True)
+    n_group = idx.shape[0] // k
+    tmp_idx = torch.arange(idx.shape[0])
+    tmp_idx = tmp_idx % n_group * k + tmp_idx // n_group
+    idx = idx[tmp_idx]
+    return idx
+
+def get_perm_v3(metric, k=32):
+    idx = metric.argsort(dim=-1, descending=True)
+    t = idx.shape[0] // 2
+    n_group = t // k
+    tmp_idx = torch.arange(idx.shape[0])
+    tmp_idx = tmp_idx % t % n_group * k + tmp_idx % t // n_group + tmp_idx // t * t
+    idx = idx[tmp_idx]
+    return idx
+
+def calc_metric(m, t=False):
+    w = m.weight if not t else m.weight.T
+    t = w.abs().pow(2).mean(dim=0).sqrt()
+    return t / t.mean()
+
+@torch.no_grad()
+def apply_permute(model, sz=32, m=0):
+    model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
+    
+    metric = calc_metric(get_embed(model))
+    funcs = [get_perm, get_perm_v2, get_perm_v3]
+    perm = funcs[m](metric, sz)
+    
+    permute_embedding(model, perm)
+    layers = get_layers(model)
+    for l in layers:
+        permute_qkv(l, perm)
+        # permute_vo(l)
+        permute_o(l, perm)
+        permute_mlp(l, perm)
+        permute_mlp_v2(l)
+    permute_head(model, perm)
