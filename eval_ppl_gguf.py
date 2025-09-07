@@ -4,6 +4,12 @@ import numpy as np
 from llama_cpp import Llama
 from datasets import load_dataset, load_from_disk
 from transformers import AutoTokenizer
+import argparse
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--gguf')
+    return parser.parse_args()
 
 def eval_ppl_wikitext_llama_cpp(model, testenc, device=None):
     """
@@ -51,7 +57,8 @@ def eval_ppl_wikitext_llama_cpp(model, testenc, device=None):
     return ppl.item()
 
 if __name__ == "__main__":
-    model = Llama("./model_smooth/Model_Smooth-2.0B-Q4_K_M.gguf", logits_all=True, n_ctx=4096)
+    args = get_args()
+    model = Llama(args.gguf, logits_all=True, n_ctx=4096)
     tokenizer = AutoTokenizer.from_pretrained('Qwen/Qwen3-1.7B')
     dataset = load_from_disk("./data/wikitext_test")
     testloader = tokenizer("\n\n".join(dataset['text']), return_tensors='pt')
