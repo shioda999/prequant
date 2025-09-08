@@ -73,11 +73,6 @@ def rotate_vo_svd(layer):
     v.weight.data = w_v_nx.reshape(-1,w_v_nx.shape[2]).to(w_v.dtype)
     o.weight.data = w_o_nx.transpose(0,1).reshape(w_o_nx.shape[1],-1).to(w_o.dtype)
 
-# def rotate_vo_optim(layer):
-#     head_dim = 128
-#     v, o = get_v(layer), get_o(layer)
-
-
 def rotate_o(layer, H):
     o = get_o(layer)
     rotate_r(o, H)
@@ -106,24 +101,8 @@ def apply_rotate(model, sz=32):
     layers = get_layers(model)
     for l in layers:
         rotate_o(l, H)
-        # rotate_vo(l, H)
-        rotate_vo_svd(l)
-        rotate_qkv(l, H)
-        rotate_mlp(l, H)
-    rotate_head(model, H)
-
-@torch.no_grad()
-def apply_rotate_v2(model, sz=32, k=1):
-    H_ = generate_hadamard_matrix(sz, model.lm_head.weight.device)
-    model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
-
-    H = torch.block_diag(*[torch.eye(sz * k).to(H_.device) if i < k else H_ for i in range(2048 // sz)])
-
-    rotate_embedding(model, H)
-    layers = get_layers(model)
-    for l in layers:
-        rotate_o(l, H)
-        rotate_vo(l, H_)
+        rotate_vo(l, H)
+        # rotate_vo_svd(l)
         rotate_qkv(l, H)
         rotate_mlp(l, H)
     rotate_head(model, H)
