@@ -106,7 +106,8 @@ def apply_rotate(model, sz=32):
     layers = get_layers(model)
     for l in layers:
         rotate_o(l, H)
-        rotate_vo(l, H)
+        # rotate_vo(l, H)
+        rotate_vo_svd(l)
         rotate_qkv(l, H)
         rotate_mlp(l, H)
     rotate_head(model, H)
@@ -122,8 +123,7 @@ def apply_rotate_v2(model, sz=32):
     layers = get_layers(model)
     for l in layers:
         rotate_o(l, H)
-        # rotate_vo(l, H_)
-        rotate_vo_svd(l)
+        rotate_vo(l, H_)
         rotate_qkv(l, H)
         rotate_mlp(l, H)
     rotate_head(model, H)

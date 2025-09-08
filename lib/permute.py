@@ -86,7 +86,7 @@ def calc_metric(m, t=False):
     return t / t.mean()
 
 @torch.no_grad()
-def apply_permute(model, sz=32, m=1):
+def apply_permute(model, sz=32, m=0):
     model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
     
     metric = calc_metric(get_embed(model))
