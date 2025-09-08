@@ -106,10 +106,12 @@ def apply_rotate(model, sz=32):
     rotate_embedding(model, H)
     layers = get_layers(model)
     for l in layers:
+        l.cuda()
         rotate_o(l, H)
         rotate_vo(l, H)
         # rotate_vo_svd(l)
         rotate_qkv(l, H)
         rotate_mlp(l, H)
         torch.cuda.empty_cache()
+        l.cpu()
     rotate_head(model, H)
