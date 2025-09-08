@@ -4,6 +4,7 @@ from .utils import *
 import torch
 import gc
 
+@torch.no_grad()
 def fuse_norm(norm, fcs):
     for fc in fcs:
         setattr(fc, "prev_dtype", fc.weight.dtype)
@@ -11,6 +12,7 @@ def fuse_norm(norm, fcs):
     setattr(norm, "prev_weight", norm.weight.data.clone())
     norm.weight.data = torch.ones_like(norm.weight)
 
+@torch.no_grad()
 def defuse_norm(norm, fcs, p=2):
     # s = norm.prev_weight.reshape(sz, -1).abs().mean(dim=0)[None].expand((sz, -1)).reshape(-1).sqrt()
     s = torch.concat([normalize(fc.weight.data) for fc in fcs]).reshape(-1, fcs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p).pow(0.5)
@@ -20,9 +22,11 @@ def defuse_norm(norm, fcs, p=2):
     norm.weight.data = norm.weight.data.float().mul(s).to(norm.weight.dtype)
     del norm.prev_weight
 
+@torch.no_grad()
 def rotate(A, H):
     A.weight.data = (A.weight.reshape(-1, H.shape[0]).float() @ H).to(A.weight.dtype).reshape(A.weight.shape)
 
+@torch.no_grad()
 def rotate_r(A, H):
     N, M = A.weight.shape
     A.weight.data = (H.T[None] @ A.weight.reshape(-1, H.shape[0], M).float()).to(A.weight.dtype).reshape(N, M)
@@ -43,6 +47,7 @@ def rotate_vo(layer, H):
     rotate_r(v, H)
     rotate(o, H)
 
+@torch.no_grad()
 def rotate_vo_svd(layer):
     head_dim = get_head_dim(layer)
     v, o = get_v(layer), get_o(layer)
@@ -106,6 +111,4 @@ def apply_rotate(model, sz=32):
         # rotate_vo_svd(l)
         rotate_qkv(l, H)
         rotate_mlp(l, H)
-        gc.collect()
-        torch.cuda.empty_cache()
     rotate_head(model, H)

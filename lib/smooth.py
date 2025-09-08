@@ -2,6 +2,7 @@ import torch
 from .get_module import *
 from .utils import *
 
+@torch.no_grad()
 def smooth_fn(As, Bs, p=2):
     s = torch.concat([normalize(B.weight) for B in Bs]).reshape(-1, Bs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p)
     sa = s[:,None] if len(As[0].weight.shape) > 1 else s

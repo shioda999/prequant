@@ -5,11 +5,13 @@ import torch
 # TODO
 # permute_vo
 
+@torch.no_grad()
 def permute(A, perm):
     t = A.weight.shape
     A.weight.data = A.weight[..., perm]
     assert t == A.weight.shape
 
+@torch.no_grad()
 def permute_r(A, perm):
     t = A.weight.shape
     A.weight.data = A.weight[perm]
@@ -23,6 +25,7 @@ def permute_qkv(layer, perm):
     for e in [get_pre_norm(layer), get_q(layer), get_k(layer), get_v(layer)]:
         permute(e, perm)
 
+@torch.no_grad()
 def permute_vo(layer, perm_func):
     v, o = get_v(layer), get_o(layer)
     dev = v.weight.device
@@ -80,6 +83,7 @@ def get_perm_v3(metric, k=32):
     idx = idx[tmp_idx]
     return idx
 
+@torch.no_grad()
 def calc_metric(m, t=False):
     w = m.weight if not t else m.weight.T
     t = w.abs().pow(2).mean(dim=0).sqrt()
