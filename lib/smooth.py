@@ -14,7 +14,8 @@ def smooth_qkv(layer):
     smooth_fn([norm], qkv)
 
 def smooth_vo(layer):
-    smooth_fn([get_v(layer)], [get_o(layer)])
+    pass
+    # 未実装
 
 def smooth_mlp(layer):
     norm = get_post_norm(layer)
