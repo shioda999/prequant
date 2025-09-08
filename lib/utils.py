@@ -1,3 +1,3 @@
 
 def normalize(A):
-    return A.double() / A.double().pow(2).mean().sqrt()
+    return A.float() / A.float().pow(2).mean().sqrt()

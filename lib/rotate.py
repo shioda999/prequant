@@ -111,4 +111,5 @@ def apply_rotate(model, sz=32):
         # rotate_vo_svd(l)
         rotate_qkv(l, H)
         rotate_mlp(l, H)
+        torch.cuda.empty_cache()
     rotate_head(model, H)
