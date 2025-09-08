@@ -7,7 +7,7 @@ from safetensors.torch import save_model, load_model
 from lib.eval import eval_ppl
 from lib.convert import convert
 from lib.smooth import apply_smooth
-from lib.rotate import apply_rotate
+from lib.rotate import apply_rotate, apply_rotate_v2
 from lib.permute import apply_permute
 
 device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
@@ -80,12 +80,15 @@ def main():
     args = get_args()
     model, tokenizer = get_model(args.model)
     
-    apply_permute(model)
-    apply_rotate(model)
-    apply_smooth(model)
+    # apply_permute(model)
+    # apply_rotate(model)
+    # apply_smooth(model)
+
+    apply_permute(model, m=0)
+    apply_rotate_v2(model)
 
     eval(args, model, tokenizer)
-    
+
     # model.save_pretrained("model_smooth", safe_serialization=True)
     # tokenizer.save_pretrained("model_smooth")
 

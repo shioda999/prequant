@@ -39,3 +39,6 @@ def get_head_norm(model):
 
 def get_head(model):
     return model.lm_head
+
+def get_head_dim(layer):
+    return get_attn(layer).q_norm.weight.shape[0]

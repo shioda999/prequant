@@ -42,6 +42,42 @@ def rotate_vo(layer, H):
     rotate_r(v, H)
     rotate(o, H)
 
+def rotate_vo_svd(layer):
+    head_dim = get_head_dim(layer)
+    v, o = get_v(layer), get_o(layer)
+    w_o, w_v = o.weight.data, v.weight.data
+    ratio = w_o.shape[0] // w_v.shape[0]
+
+    w_o = w_o.reshape(w_o.shape[0],-1,head_dim).transpose(0,1)
+    w_v = w_v.reshape(-1,head_dim,w_v.shape[-1])
+    w_v_ex = w_v[None].expand(ratio,-1,-1,-1).transpose(0,1).reshape(-1,head_dim,w_v.shape[-1])
+
+    w_o_sh = w_o.reshape(-1,ratio,w_o.shape[1],head_dim).mean(dim=1)
+    B = w_o_sh.float() @ w_v.float()
+    U, S, Vh = [], [], []
+    for e in B:
+        u, s, vh = torch.linalg.svd(e, full_matrices=True)
+        U.append(u)
+        S.append(s)
+        Vh.append(vh)
+    U, S, Vh = torch.stack(U), torch.stack(S), torch.stack(Vh)
+    # print(U.shape, S.shape, Vh.shape)
+    U, S, Vh = U[:,:,:head_dim], S[:,:head_dim], Vh[:,:head_dim]
+    # print(U.shape, S.shape, Vh.shape)
+    w_v_nx = Vh * S.sqrt()[:,:,None]
+    # print(w_v_nx.shape)
+    w_v_nx_inv = Vh.transpose(-1,-2) / S.sqrt()[:,None]
+    A = w_o.float() @ w_v_ex.float()
+    w_o_nx = A @ w_v_nx_inv[None].expand(2,-1,-1,-1).transpose(0,1).reshape(-1,*w_v_nx_inv.shape[1:])
+    # print(w_o_nx.shape)
+    v.weight.data = w_v_nx.reshape(-1,w_v_nx.shape[2]).to(w_v.dtype)
+    o.weight.data = w_o_nx.transpose(0,1).reshape(w_o_nx.shape[1],-1).to(w_o.dtype)
+
+# def rotate_vo_optim(layer):
+#     head_dim = 128
+#     v, o = get_v(layer), get_o(layer)
+
+
 def rotate_o(layer, H):
     o = get_o(layer)
     rotate_r(o, H)
@@ -69,8 +105,25 @@ def apply_rotate(model, sz=32):
     rotate_embedding(model, H)
     layers = get_layers(model)
     for l in layers:
-        rotate_qkv(l, H)
-        rotate_vo(l, H)
         rotate_o(l, H)
+        rotate_vo(l, H)
+        rotate_qkv(l, H)
+        rotate_mlp(l, H)
+    rotate_head(model, H)
+
+@torch.no_grad()
+def apply_rotate_v2(model, sz=32):
+    H_ = generate_hadamard_matrix(sz, model.lm_head.weight.device)
+    model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
+
+    H = torch.block_diag(*[torch.eye(sz).to(H_.device) if i == 0 else H_ for i in range(2048 // sz)])
+
+    rotate_embedding(model, H)
+    layers = get_layers(model)
+    for l in layers:
+        rotate_o(l, H)
+        # rotate_vo(l, H_)
+        rotate_vo_svd(l)
+        rotate_qkv(l, H)
         rotate_mlp(l, H)
     rotate_head(model, H)

@@ -3,7 +3,6 @@ from .utils import *
 import torch
 
 # TODO
-# permute_mlp_v2
 # permute_vo
 
 def permute(A, perm):
@@ -28,12 +27,17 @@ def permute_vo(layer):
     v, o = get_v(layer), get_o(layer)
     dev = v.weight.device
     mv, mo = calc_metric(v, t=True), calc_metric(o)
-    head_dim = 32
+    head_dim = get_head_dim(layer)
     ratio = mo.shape[0] // mv.shape[0]
     metric = mv + mo.reshape(ratio,-1).mean(dim=0)
-    perm = get_perm_v2(metric.reshape(-1, head_dim).mean(dim=0))
-    permute_r(v, (perm[None].expand(mv.shape[0]//head_dim,-1) + head_dim * torch.arange(mv.shape[0]//head_dim).to(dev)[:,None]).reshape(-1))
-    permute_r(o, (perm[None].expand(mo.shape[0]//head_dim,-1) + head_dim * torch.arange(mo.shape[0]//head_dim).to(dev)[:,None]).reshape(-1))
+    metric = metric.reshape(-1, head_dim)
+    perm_v = torch.concat([get_perm_v2(m) + head_dim * i for i, m in enumerate(metric)])
+    perm_o = torch.concat([torch.concat([get_perm_v2(m) + head_dim * (i * ratio + j) for j in range(ratio)]) for i, m in enumerate(metric)])
+    permute_r(v, perm_v)
+    permute(o, perm_o)
+    # perm = get_perm_v2(metric.reshape(-1, head_dim).mean(dim=0))
+    # permute_r(v, (perm[None].expand(mv.shape[0]//head_dim,-1) + head_dim * torch.arange(mv.shape[0]//head_dim).to(dev)[:,None]).reshape(-1))
+    # permute(o, (perm[None].expand(mo.shape[0]//head_dim,-1) + head_dim * torch.arange(mo.shape[0]//head_dim).to(dev)[:,None]).reshape(-1))
     
 def permute_o(layer, perm):
     o = get_o(layer)
@@ -82,7 +86,7 @@ def calc_metric(m, t=False):
     return t / t.mean()
 
 @torch.no_grad()
-def apply_permute(model, sz=32, m=0):
+def apply_permute(model, sz=32, m=1):
     model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
     
     metric = calc_metric(get_embed(model))
@@ -93,7 +97,7 @@ def apply_permute(model, sz=32, m=0):
     layers = get_layers(model)
     for l in layers:
         permute_qkv(l, perm)
-        # permute_vo(l)
+        permute_vo(l)
         permute_o(l, perm)
         permute_mlp(l, perm)
         permute_mlp_v2(l)

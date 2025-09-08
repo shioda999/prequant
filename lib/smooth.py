@@ -13,7 +13,7 @@ def smooth_qkv(layer):
     qkv = [get_q(layer), get_k(layer), get_v(layer)]
     smooth_fn([norm], qkv)
 
-def smooth_ov(layer):
+def smooth_vo(layer):
     smooth_fn([get_v(layer)], [get_o(layer)])
 
 def smooth_mlp(layer):
@@ -31,6 +31,7 @@ def smooth_head(model):
 def apply_smooth(model):
     layers = get_layers(model)
     for l in layers:
+        smooth_vo(l)
         smooth_qkv(l)
         smooth_mlp(l)
     smooth_head(model)
