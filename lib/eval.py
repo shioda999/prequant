@@ -13,6 +13,7 @@ from datasets import load_from_disk
 @torch.no_grad()
 def eval_ppl(model, tokenizer, device=torch.device("cuda:0"), datasets=["wikitext2", "ptb", "c4"]):
     if not hasattr(model, 'seqlen'): model.seqlen = 2048
+    model.to(device)
     results = {}
     for dataset in datasets:
         if dataset == "wikitext2":

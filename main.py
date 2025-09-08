@@ -29,7 +29,7 @@ def get_args():
     return parser.parse_args()
 
 def get_model(model_name):
-    kwargs = { "torch_dtype": torch.float16, "device_map": "auto" }
+    kwargs = { "dtype": torch.float16, "device_map": "cpu" }
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(model_name, **kwargs)
     return model, tokenizer
@@ -84,6 +84,7 @@ def main():
     apply_rotate(model)
     apply_smooth(model)
 
+    model.to(device)
     eval(args, model, tokenizer)
 
     # model.save_pretrained("model", safe_serialization=True)
