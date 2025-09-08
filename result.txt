@@ -11,6 +11,8 @@ sz=32程度がよさそう
 ・rotate (sz=32) + vo_rotate_svd: 16.5くらい
 ・rotate_v2 (sz=32) + permute(m=0, vo+mlp only): 15.649656295776367
 
+・理論値（FP16 llama.cpp）ppl: 15.61900520324707
+
 permuteしないのが最もいいらしい
 
 ・今後
