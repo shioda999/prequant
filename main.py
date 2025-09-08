@@ -84,7 +84,7 @@ def main():
     # apply_rotate(model)
     # apply_smooth(model)
 
-    apply_permute(model, m=0)
+    apply_permute(model, m=1)
     apply_rotate_v2(model)
 
     eval(args, model, tokenizer)

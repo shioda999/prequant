@@ -23,7 +23,7 @@ def permute_qkv(layer, perm):
     for e in [get_pre_norm(layer), get_q(layer), get_k(layer), get_v(layer)]:
         permute(e, perm)
 
-def permute_vo(layer):
+def permute_vo(layer, perm_func):
     v, o = get_v(layer), get_o(layer)
     dev = v.weight.device
     mv, mo = calc_metric(v, t=True), calc_metric(o)
@@ -31,8 +31,8 @@ def permute_vo(layer):
     ratio = mo.shape[0] // mv.shape[0]
     metric = mv + mo.reshape(ratio,-1).mean(dim=0)
     metric = metric.reshape(-1, head_dim)
-    perm_v = torch.concat([get_perm_v2(m) + head_dim * i for i, m in enumerate(metric)])
-    perm_o = torch.concat([torch.concat([get_perm_v2(m) + head_dim * (i * ratio + j) for j in range(ratio)]) for i, m in enumerate(metric)])
+    perm_v = torch.concat([perm_func(m) + head_dim * i for i, m in enumerate(metric)])
+    perm_o = torch.concat([torch.concat([perm_func(m) + head_dim * (i * ratio + j) for j in range(ratio)]) for i, m in enumerate(metric)])
     permute_r(v, perm_v)
     permute(o, perm_o)
     # perm = get_perm_v2(metric.reshape(-1, head_dim).mean(dim=0))
@@ -48,10 +48,10 @@ def permute_mlp(layer, perm):
         permute(e, perm)
     permute_r(get_down(layer), perm)
 
-def permute_mlp_v2(layer):
+def permute_mlp_v2(layer, perm_func):
     up, gate, down = get_up(layer), get_gate(layer), get_down(layer)
     metric = calc_metric(up, t=True) + calc_metric(gate, t=True) + calc_metric(down)
-    perm = get_perm_v2(metric)
+    perm = perm_func(metric)
     for e in [up, gate]: permute_r(e, perm)
     permute(down, perm)
 
@@ -86,19 +86,19 @@ def calc_metric(m, t=False):
     return t / t.mean()
 
 @torch.no_grad()
-def apply_permute(model, sz=32, m=0):
+def apply_permute(model, sz=32, m=1):
     model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
     
-    metric = calc_metric(get_embed(model))
-    funcs = [get_perm, get_perm_v2, get_perm_v3]
-    perm = funcs[m](metric, sz)
+    # metric = calc_metric(get_embed(model))
+    perm_func = [get_perm, get_perm_v2, get_perm_v3][m]
+    # perm = perm_func[m](metric, sz)
     
-    permute_embedding(model, perm)
+    # permute_embedding(model, perm)
     layers = get_layers(model)
     for l in layers:
-        permute_qkv(l, perm)
-        permute_vo(l)
-        permute_o(l, perm)
-        permute_mlp(l, perm)
-        permute_mlp_v2(l)
-    permute_head(model, perm)
+        # permute_qkv(l, perm)
+        permute_vo(l, perm_func)
+        # permute_o(l, perm)
+        # permute_mlp(l, perm)
+        permute_mlp_v2(l, perm_func)
+    # permute_head(model, perm)

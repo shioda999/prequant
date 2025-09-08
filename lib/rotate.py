@@ -113,11 +113,11 @@ def apply_rotate(model, sz=32):
     rotate_head(model, H)
 
 @torch.no_grad()
-def apply_rotate_v2(model, sz=32):
+def apply_rotate_v2(model, sz=32, k=1):
     H_ = generate_hadamard_matrix(sz, model.lm_head.weight.device)
     model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
 
-    H = torch.block_diag(*[torch.eye(sz).to(H_.device) if i == 0 else H_ for i in range(2048 // sz)])
+    H = torch.block_diag(*[torch.eye(sz * k).to(H_.device) if i < k else H_ for i in range(2048 // sz)])
 
     rotate_embedding(model, H)
     layers = get_layers(model)

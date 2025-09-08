@@ -8,7 +8,8 @@ sz=32程度がよさそう
 ・rotate (sz=32): 15.931467056274414 <- best
 ・rotate (sz=32) + permute(m=0): 16.23542594909668
 ・rotate (sz=32) + permute(m=1): 16.58063507080078
-・rotate (sz=32) + vo_rotate_svd: 15.956902503967285
+・rotate (sz=32) + vo_rotate_svd: 16.5くらい
+・rotate_v2 (sz=32): 15.916448593139648
 
 permuteしないのが最もいいらしい
 
