@@ -2,6 +2,7 @@ from .hadamard import generate_hadamard_matrix
 from .get_module import *
 from .utils import *
 import torch
+import gc
 
 def fuse_norm(norm, fcs):
     for fc in fcs:
@@ -105,5 +106,6 @@ def apply_rotate(model, sz=32):
         # rotate_vo_svd(l)
         rotate_qkv(l, H)
         rotate_mlp(l, H)
+        gc.collect()
         torch.cuda.empty_cache()
     rotate_head(model, H)
