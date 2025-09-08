@@ -6,7 +6,7 @@ import torch
 def fuse_norm(norm, fcs):
     for fc in fcs:
         setattr(fc, "prev_dtype", fc.weight.dtype)
-        fc.weight.data = norm.weight.double() * fc.weight.double()
+        fc.weight.data = norm.weight.float() * fc.weight.float()
     setattr(norm, "prev_weight", norm.weight.data.clone())
     norm.weight.data = torch.ones_like(norm.weight)
 
@@ -14,17 +14,17 @@ def defuse_norm(norm, fcs, p=2):
     # s = norm.prev_weight.reshape(sz, -1).abs().mean(dim=0)[None].expand((sz, -1)).reshape(-1).sqrt()
     s = torch.concat([normalize(fc.weight.data) for fc in fcs]).reshape(-1, fcs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p).pow(0.5)
     for fc in fcs:
-        fc.weight.data = fc.weight.data.double().div(s).to(fc.prev_dtype)
+        fc.weight.data = fc.weight.data.float().div(s).to(fc.prev_dtype)
         del fc.prev_dtype
-    norm.weight.data = norm.weight.data.double().mul(s).to(norm.weight.dtype)
+    norm.weight.data = norm.weight.data.float().mul(s).to(norm.weight.dtype)
     del norm.prev_weight
 
 def rotate(A, H):
-    A.weight.data = (A.weight.reshape(-1, H.shape[0]).double() @ H).to(A.weight.dtype).reshape(A.weight.shape)
+    A.weight.data = (A.weight.reshape(-1, H.shape[0]).float() @ H).to(A.weight.dtype).reshape(A.weight.shape)
 
 def rotate_r(A, H):
     N, M = A.weight.shape
-    A.weight.data = (H.T[None] @ A.weight.reshape(-1, H.shape[0], M).double()).to(A.weight.dtype).reshape(N, M)
+    A.weight.data = (H.T[None] @ A.weight.reshape(-1, H.shape[0], M).float()).to(A.weight.dtype).reshape(N, M)
 
 def rotate_embedding(model, H):
     embed = get_embed(model)

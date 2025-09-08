@@ -8,7 +8,7 @@ def _generate_hadamard_matrix(n, device):
     if not (n > 0 and ((n & (n - 1)) == 0)):
         raise ValueError("n must be a power of 2")
     H = hadamard(n) / math.sqrt(n)
-    return torch.tensor(H, device=device)
+    return torch.tensor(H, device=device).float()
 
 def generate_hadamard_matrix(n, device):
     k = 1
@@ -19,5 +19,5 @@ def generate_hadamard_matrix(n, device):
         n >>= 1
         k <<= 1
     m.reverse()
-    r = torch.block_diag(*m)
+    r = torch.block_diag(*m).float()
     return r
