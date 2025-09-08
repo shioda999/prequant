@@ -64,3 +64,4 @@ if __name__ == "__main__":
     testloader = tokenizer("\n\n".join(dataset['text']), return_tensors='pt')
     ppl = eval_ppl_wikitext_llama_cpp(model, testloader)
     print("ppl:", ppl)
+    model.close()
