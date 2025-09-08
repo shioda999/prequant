@@ -33,8 +33,7 @@ def eval_ppl_wikitext_llama_cpp(model, testenc, device=None):
         # llama-cpp で logits を計算
         # 出力: [seqlen, vocab_size] の numpy array
         model.eval(inputs)
-        # logits = model.scores
-        logits = model._ctx.logits
+        logits = model.scores
         model.reset()
         # PyTorch tensor に変換
         logits = torch.from_numpy(logits).to(torch.float32)  # [seqlen, vocab]
@@ -59,7 +58,7 @@ def eval_ppl_wikitext_llama_cpp(model, testenc, device=None):
 
 if __name__ == "__main__":
     args = get_args()
-    model = Llama(args.gguf, n_gpu_layers=-1, n_ctx=4096, n_batch=512)#, logits_all=True)
+    model = Llama(args.gguf, n_gpu_layers=-1, n_ctx=4096, n_batch=512, logits_all=True)
     tokenizer = AutoTokenizer.from_pretrained('Qwen/Qwen3-1.7B')
     dataset = load_from_disk("./data/wikitext_test")
     testloader = tokenizer("\n\n".join(dataset['text']), return_tensors='pt')
