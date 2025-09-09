@@ -15,8 +15,19 @@ def smooth_qkv(layer):
     smooth_fn([norm], qkv)
 
 def smooth_vo(layer):
-    pass
-    # 未実装
+    head_dim = get_head_dim(layer)
+    v, o = get_v(layer), get_o(layer)
+    w_o, w_v = o.weight.data, v.weight.data
+    ratio = w_o.shape[1] // w_v.shape[0]
+    w_o = w_o.reshape(w_o.shape[0],-1,ratio,head_dim).transpose(1,2).reshape(ratio*w_o.shape[0],-1)
+    
+    p = 2
+    s_v = normalize(w_v).abs().pow(p).mean(dim=1).pow(1/p)
+    s_o = normalize(w_o).abs().pow(p).mean(dim=0).pow(1/p)
+    s = s_v * s_o
+    
+
+
 
 def smooth_mlp(layer):
     norm = get_post_norm(layer)
