@@ -8,28 +8,28 @@ import gc
 def fuse_norm(norm, fcs):
     for fc in fcs:
         setattr(fc, "prev_dtype", fc.weight.dtype)
-        fc.weight.copy_(norm.weight.float() * fc.weight.float())
+        fc.weight.data = norm.weight.float() * fc.weight.float()
     setattr(norm, "prev_weight", norm.weight.data.clone())
-    norm.weight.copy_(torch.ones_like(norm.weight))
+    norm.weight.data = torch.ones_like(norm.weight)
 
 @torch.no_grad()
 def defuse_norm(norm, fcs, p=2):
     # s = norm.prev_weight.reshape(sz, -1).abs().mean(dim=0)[None].expand((sz, -1)).reshape(-1).sqrt()
     s = torch.concat([normalize(fc.weight.data) for fc in fcs]).reshape(-1, fcs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p).pow(0.5)
     for fc in fcs:
-        fc.weight.copy_(fc.weight.data.float().div(s).to(fc.prev_dtype))
+        fc.weight.data = fc.weight.data.float().div(s).to(fc.prev_dtype)
         del fc.prev_dtype
-    norm.weight.copy_(norm.weight.data.float().mul(s).to(norm.weight.dtype))
+    norm.weight.data = norm.weight.data.float().mul(s).to(norm.weight.dtype)
     del norm.prev_weight
 
 @torch.no_grad()
 def rotate(A, H):
-    A.weight.copy_((A.weight.reshape(-1, H.shape[0]).float() @ H).to(A.weight.dtype).reshape(A.weight.shape))
+    A.weight.data = (A.weight.reshape(-1, H.shape[0]).float() @ H).to(A.weight.dtype).reshape(A.weight.shape)
 
 @torch.no_grad()
 def rotate_r(A, H):
     N, M = A.weight.shape
-    A.weight.copy_((H.T[None] @ A.weight.reshape(-1, H.shape[0], M).float()).to(A.weight.dtype).reshape(N, M))
+    A.weight.data = (H.T[None] @ A.weight.reshape(-1, H.shape[0], M).float()).to(A.weight.dtype).reshape(N, M)
 
 def rotate_embedding(model, H):
     embed = get_embed(model)
@@ -76,8 +76,8 @@ def rotate_vo_svd(layer):
     A = w_o.float() @ w_v_ex.float()
     w_o_nx = A @ w_v_nx_inv[None].expand(2,-1,-1,-1).transpose(0,1).reshape(-1,*w_v_nx_inv.shape[1:])
     # print(w_o_nx.shape)
-    v.weight.copy_(w_v_nx.reshape(-1,w_v_nx.shape[2]).to(w_v.dtype))
-    o.weight.copy_(w_o_nx.transpose(0,1).reshape(w_o_nx.shape[1],-1).to(w_o.dtype))
+    v.weight.data = w_v_nx.reshape(-1,w_v_nx.shape[2]).to(w_v.dtype)
+    o.weight.data = w_o_nx.transpose(0,1).reshape(w_o_nx.shape[1],-1).to(w_o.dtype)
 
 def rotate_o(layer, H):
     o = get_o(layer)
@@ -100,14 +100,16 @@ def rotate_head(model, H):
 
 @torch.no_grad()
 def apply_rotate(model, sz=32):
-    H = generate_hadamard_matrix(sz, model.lm_head.weight.device)
+    device = next(model.parameters()).device
+    model.cpu()
+    H = generate_hadamard_matrix(sz, torch.device("cpu"))
     model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
 
     rotate_embedding(model, H)
     layers = get_layers(model)
-    H = H.cuda()
+    H = H.to(device)
     for l in layers:
-        l.cuda()
+        l.to(device)
         rotate_o(l, H)
         rotate_vo(l, H)
         # rotate_vo_svd(l)
@@ -116,3 +118,4 @@ def apply_rotate(model, sz=32):
         torch.cuda.empty_cache()
         l.cpu()
     rotate_head(model, H.cpu())
+    model.to(device)
