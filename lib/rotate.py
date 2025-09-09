@@ -2,7 +2,6 @@ from .hadamard import generate_hadamard_matrix
 from .get_module import *
 from .utils import *
 import torch
-import .smooth import 
 import gc
 
 @torch.no_grad()
@@ -49,7 +48,7 @@ def rotate_vo(layer, H):
     rotate(o, H)
 
 def rotate_vo_duquant(layer, H):
-
+    pass
 
 @torch.no_grad()
 def rotate_vo_svd(layer):
