@@ -29,7 +29,7 @@ def get_args():
     return parser.parse_args()
 
 def get_model(model_name):
-    kwargs = { "dtype": torch.float16, "device_map": "cpu" }
+    kwargs = { "torch_dtype": torch.float16, "device_map": "cpu" }
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(model_name, **kwargs)
     return model, tokenizer

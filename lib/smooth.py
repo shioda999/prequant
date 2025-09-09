@@ -18,16 +18,17 @@ def smooth_vo(layer):
     head_dim = get_head_dim(layer)
     v, o = get_v(layer), get_o(layer)
     w_o, w_v = o.weight.data, v.weight.data
+    tmp = w_o.shape
     ratio = w_o.shape[1] // w_v.shape[0]
     w_o = w_o.reshape(w_o.shape[0],-1,ratio,head_dim).transpose(1,2).reshape(ratio*w_o.shape[0],-1)
     
     p = 2
     s_v = normalize(w_v).abs().pow(p).mean(dim=1).pow(1/p)
     s_o = normalize(w_o).abs().pow(p).mean(dim=0).pow(1/p)
-    s = s_v * s_o
-    
+    s = (s_v / s_o).pow(0.5)
 
-
+    v.weight.data = v.weight.mul(s[:,None]).to(w_v.dtype)
+    o.weight.data = w_o.div(s).reshape(-1,ratio,w_o.shape[1]//head_dim,head_dim).transpose(1,2).reshape(tmp).to(w_o.dtype)
 
 def smooth_mlp(layer):
     norm = get_post_norm(layer)
