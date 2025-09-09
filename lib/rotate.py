@@ -48,10 +48,13 @@ def rotate_vo(layer, H):
     rotate_r(v, H)
     rotate(o, H)
 
-def rotate_vo_duquant(layer, H):
+def rotate_vo_duquant(layer, sz=32):
     smooth_vo(layer)
     head_dim = get_head_dim(layer)
     v, o = get_v(layer), get_o(layer)
+    device = v.weihgt.device
+    ratio = o.weight.shape[1] // v.weight.shape[0]
+    [random_rotation_matrix(sz, device) for i in range()]
 
 
 @torch.no_grad()
