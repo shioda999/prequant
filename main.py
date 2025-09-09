@@ -80,7 +80,7 @@ def main():
     args = get_args()
     model, tokenizer = get_model(args.model)
     
-    apply_permute(model, m=0)
+    apply_permute(model, m=1)
     apply_rotate(model)
     apply_smooth(model)
 

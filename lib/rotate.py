@@ -2,6 +2,7 @@ from .hadamard import generate_hadamard_matrix
 from .get_module import *
 from .utils import *
 from .smooth import smooth_vo
+from .permute import permute_vo, get_perm_v2
 import torch
 import gc
 
@@ -52,10 +53,18 @@ def rotate_vo_duquant(layer, sz=32):
     smooth_vo(layer)
     head_dim = get_head_dim(layer)
     v, o = get_v(layer), get_o(layer)
-    device = v.weihgt.device
+    device = v.weight.device
     ratio = o.weight.shape[1] // v.weight.shape[0]
-    [random_rotation_matrix(sz, device) for i in range()]
-
+    n_heads = v.weight.shape[0] // head_dim
+    Qs = [[random_rotation_matrix(sz, device) for _ in range(head_dim//sz)] for _ in range(n_heads)]
+    Qs2 = [[q for _ in range(ratio)] for q in Qs]
+    rotate_r(v, torch.block_diag(*[x for row in Qs for x in row]))
+    rotate(o, torch.block_diag(*[xx for row in Qs2 for x in row for xx in x]))
+    permute_vo(layer, get_perm_v2)
+    Qs = [[random_rotation_matrix(sz, device) for _ in range(head_dim//sz)] for _ in range(n_heads)]
+    Qs2 = [[q for _ in range(ratio)] for q in Qs]
+    rotate_r(v, torch.block_diag(*[x for row in Qs for x in row]))
+    rotate(o, torch.block_diag(*[xx for row in Qs2 for x in row for xx in x]))
 
 @torch.no_grad()
 def rotate_vo_svd(layer):
@@ -121,8 +130,9 @@ def apply_rotate(model, sz=32):
     for l in layers:
         l.to(device)
         rotate_o(l, H)
-        rotate_vo(l, H)
+        # rotate_vo(l, H)
         # rotate_vo_svd(l)
+        rotate_vo_duquant(l)
         rotate_qkv(l, H)
         rotate_mlp(l, H)
         torch.cuda.empty_cache()

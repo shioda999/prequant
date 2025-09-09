@@ -26,7 +26,8 @@ def permute_qkv(layer, perm):
         permute(e, perm)
 
 @torch.no_grad()
-def permute_vo(layer, perm_func):
+def permute_vo(layer, perm_func=None):
+    if perm_func is None: perm_func = get_perm
     v, o = get_v(layer), get_o(layer)
     dev = v.weight.device
     mv, mo = calc_metric(v, t=True), calc_metric(o)
@@ -90,7 +91,7 @@ def calc_metric(m, t=False):
     return t / t.mean()
 
 @torch.no_grad()
-def apply_permute(model, sz=32, m=0):
+def apply_permute(model, sz=32, m=1):
     model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
     
     # metric = calc_metric(get_embed(model))
