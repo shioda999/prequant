@@ -1,4 +1,5 @@
 import torch
+from .get_module import get_head_norm
 
 @torch.no_grad()
 def normalize(A):

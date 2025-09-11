@@ -109,7 +109,7 @@ def rotate_mlp(layer, H):
     rotate(up, H)
     rotate(gate, H)
     defuse_norm(norm, [up, gate])
-    rotate_r(down, H)
+    # rotate_r(down, H)
 
 def rotate_head(model, H):
     norm, head = get_head_norm(model), get_head(model)
@@ -117,25 +117,54 @@ def rotate_head(model, H):
     rotate(head, H)
     defuse_norm(norm, [head])
 
+
+def add_rotate_pre(m, H):
+    class PreRot(m.__class__):
+        def forward(self, x):
+            x = (x.float().reshape(x.shape[0], x.shape[1], -1, H.shape[0]) @ H.T).reshape(x.shape).to(x.dtype)
+            return super().forward(x)
+    m.__class__ = PreRot
+
+def add_rotate_post(m, H):
+    class PostRot(m.__class__):
+        def forward(self, x):
+            x = super().forward(x)
+            x = (x.float().reshape(x.shape[0], x.shape[1], -1, H.shape[0]) @ H).reshape(x.shape).to(x.dtype)
+            return x
+    m.__class__ = PostRot
+    
 @torch.no_grad()
-def apply_rotate(model, sz=32):
+def apply_rotate(model, sz=32, global_rotate=True):
     device = next(model.parameters()).device
     model.cpu()
     H = generate_hadamard_matrix(sz, torch.device("cpu"))
     model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
 
-    rotate_embedding(model, H)
-    layers = get_layers(model)
-    H = H.to(device)
-    for l in layers:
-        l.to(device)
-        rotate_o(l, H)
-        # rotate_vo(l, H)
-        # rotate_vo_svd(l)
-        rotate_vo_duquant(l)
-        rotate_qkv(l, H)
-        rotate_mlp(l, H)
-        torch.cuda.empty_cache()
-        l.cpu()
-    rotate_head(model, H.cpu())
+    if global_rotate:
+        rotate_embedding(model, H)
+        layers = get_layers(model)
+        H = H.to(device)
+        for l in layers:
+            l.to(device)
+            rotate_o(l, H)
+            # rotate_vo(l, H)
+            # rotate_vo_svd(l)
+            rotate_vo_duquant(l)
+
+            rotate_qkv(l, H)
+            rotate_mlp(l, H)
+            torch.cuda.empty_cache()
+            l.cpu()
+        rotate_head(model, H.cpu())
+
+    else:
+        layers = get_layers(model)
+        for l in layers:
+            l.to(device)
+            rotate_vo_duquant(l)
+            torch.cuda.empty_cache()
+            l.cpu()
+
     model.to(device)
+
+

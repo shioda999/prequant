@@ -17,7 +17,8 @@ def str2bool(s):
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', default='Qwen/Qwen3-1.7B')
+    # parser.add_argument('--model', default='Qwen/Qwen3-1.7B')
+    parser.add_argument('--model', default='google/gemma-3-1b-it')
     # 量子化設定
     parser.add_argument('--smooth', type=str2bool, default=True) # smoothquant のスムーズ化
     parser.add_argument('--rotate', type=str2bool, default=True) # quarotの回転スムーズ化
@@ -81,7 +82,7 @@ def main():
     model, tokenizer = get_model(args.model)
     
     apply_permute(model, m=1)
-    apply_rotate(model)
+    apply_rotate(model, global_rotate=False)
     apply_smooth(model)
 
     model.to(device)

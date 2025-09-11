@@ -20,6 +20,8 @@ def get_pre_norm(layer):
     return layer.input_layernorm
 
 def get_post_norm(layer):
+    if hasattr(layer, "pre_feedforward_layernorm"):
+        return layer.pre_feedforward_layernorm
     return layer.post_attention_layernorm
 
 def get_up(layer):
