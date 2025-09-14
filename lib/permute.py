@@ -54,7 +54,7 @@ def permute_mlp(layer, perm):
 
 def permute_mlp_v2(layer, perm_func):
     up, gate, down = get_up(layer), get_gate(layer), get_down(layer)
-    metric = calc_metric(up, t=True) + calc_metric(gate, t=True) + calc_metric(down)
+    metric = calc_metric(down)
     perm = perm_func(metric)
     for e in [up, gate]: permute_r(e, perm)
     permute(down, perm)
@@ -105,5 +105,5 @@ def apply_permute(model, sz=32, m=1):
         permute_vo(l, perm_func)
         # permute_o(l, perm)
         # permute_mlp(l, perm)
-        permute_mlp_v2(l, perm_func)
+        permute_mlp_v2(l, get_perm)
     # permute_head(model, perm)
