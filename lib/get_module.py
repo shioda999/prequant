@@ -43,4 +43,21 @@ def get_head(model):
     return model.lm_head
 
 def get_head_dim(layer):
-    return get_attn(layer).q_norm.weight.shape[0]
+    if hasattr(layer.config, "headdim"):
+        dim = layer.config.head_dim
+    else:
+        dim = get_dim(layer) // get_num_heads(layer)
+    return dim
+
+def get_dim(layer):
+    return layer.config.hidden_size
+
+def get_num_heads(layer):
+    return layer.config.num_attention_heads
+
+def get_num_kv_heads(layer):
+    return layer.config.num_key_value_heads
+
+def apply_config(model):
+    for l in get_layers(model):
+        l.config = model.config

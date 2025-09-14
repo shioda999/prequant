@@ -7,8 +7,10 @@ from safetensors.torch import save_model, load_model
 from lib.eval import eval_ppl
 from lib.convert import convert
 from lib.smooth import apply_smooth
-from lib.rotate import apply_rotate
+from lib.rotate import apply_rotate, apply_rotate_vo_only, apply_rotate_debug
 from lib.permute import apply_permute
+from lib.get_module import apply_config
+from lib.utils import *
 
 device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
 
@@ -18,11 +20,10 @@ def str2bool(s):
 def get_args():
     parser = argparse.ArgumentParser()
     # parser.add_argument('--model', default='Qwen/Qwen3-1.7B')
-    parser.add_argument('--model', default='google/gemma-3-1b-it')
-    # 量子化設定
-    parser.add_argument('--smooth', type=str2bool, default=True) # smoothquant のスムーズ化
-    parser.add_argument('--rotate', type=str2bool, default=True) # quarotの回転スムーズ化
-    parser.add_argument('--gptq', action='store_true') # GPTQ 遅い上に効果が微妙
+    # parser.add_argument('--model', default='meta-llama/Llama-3.2-1B-Instruct')
+    # parser.add_argument('--model', default='mistralai/Mistral-7B-Instruct-v0.3')
+    # parser.add_argument('--model', default='microsoft/Phi-4-mini-instruct')
+    parser.add_argument('--model', default='microsoft/Phi-4-mini-instruct')
     
     # benchmark
     parser.add_argument('--text_gen', type=str2bool, default=True) # 自己紹介文生成
@@ -38,7 +39,7 @@ def get_model(model_name):
 @torch.no_grad()
 def test_text_generation(model, tokenizer):
     messages = [
-        {"role": "system", "content": "You are chatbot."},
+        # {"role": "system", "content": "You are chatbot."},
         {"role": "user", "content": "List numbers from 1 to 10, each numbers is separated by comma."},
         # {"role": "user", "content": "Please Introduce yourself."},
         # {"role": "user", "content": "Please talk about global warming as long as you can."},
@@ -81,9 +82,15 @@ def main():
     args = get_args()
     model, tokenizer = get_model(args.model)
     
+    divide(model)
+    
+    apply_config(model)
     apply_permute(model, m=1)
-    apply_rotate(model, global_rotate=False)
+    apply_rotate(model)
+    # apply_rotate_vo_only(model)
     apply_smooth(model)
+
+    undivide(model)
 
     model.to(device)
     eval(args, model, tokenizer)
@@ -96,3 +103,15 @@ def main():
     
 if __name__ == '__main__':
     main()
+
+# model候補
+
+# mistral
+# https://huggingface.co/mistralai/Ministral-8B-Instruct-2410/blob/main/model-00001-of-00004.safetensors
+# https://huggingface.co/mistralai/Mistral-Small-3.2-24B-Instruct-2506
+
+# gemma2
+
+# phi4
+
+# 

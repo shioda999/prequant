@@ -109,7 +109,7 @@ def rotate_mlp(layer, H):
     rotate(up, H)
     rotate(gate, H)
     defuse_norm(norm, [up, gate])
-    # rotate_r(down, H)
+    rotate_r(down, H)
 
 def rotate_head(model, H):
     norm, head = get_head_norm(model), get_head(model)
@@ -121,7 +121,7 @@ def rotate_head(model, H):
 def add_rotate_pre(m, H):
     class PreRot(m.__class__):
         def forward(self, x):
-            x = (x.float().reshape(x.shape[0], x.shape[1], -1, H.shape[0]) @ H.T).reshape(x.shape).to(x.dtype)
+            x = (x.float().reshape(-1, H.shape[0]) @ H.T).reshape(x.shape).to(x.dtype)
             return super().forward(x)
     m.__class__ = PreRot
 
@@ -129,42 +129,83 @@ def add_rotate_post(m, H):
     class PostRot(m.__class__):
         def forward(self, x):
             x = super().forward(x)
-            x = (x.float().reshape(x.shape[0], x.shape[1], -1, H.shape[0]) @ H).reshape(x.shape).to(x.dtype)
+            x = (x.float().reshape(-1, H.shape[0]) @ H).reshape(x.shape).to(x.dtype)
             return x
     m.__class__ = PostRot
     
 @torch.no_grad()
-def apply_rotate(model, sz=32, global_rotate=True):
+def apply_rotate(model, sz=32):
     device = next(model.parameters()).device
     model.cpu()
     H = generate_hadamard_matrix(sz, torch.device("cpu"))
     model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
 
-    if global_rotate:
-        rotate_embedding(model, H)
-        layers = get_layers(model)
-        H = H.to(device)
-        for l in layers:
-            l.to(device)
-            rotate_o(l, H)
-            # rotate_vo(l, H)
-            # rotate_vo_svd(l)
-            rotate_vo_duquant(l)
+    rotate_embedding(model, H)
+    layers = get_layers(model)
+    H = H.to(device)
+    for l in layers:
+        l.to(device)
+        rotate_o(l, H)
+        # rotate_vo(l, H)
+        # rotate_vo_svd(l)
+        rotate_vo_duquant(l)
+        rotate_mlp(l, H)
 
-            rotate_qkv(l, H)
-            rotate_mlp(l, H)
-            torch.cuda.empty_cache()
-            l.cpu()
-        rotate_head(model, H.cpu())
+        rotate_qkv(l, H)
+        torch.cuda.empty_cache()
+        l.cpu()
+    rotate_head(model, H.cpu())
 
-    else:
-        layers = get_layers(model)
-        for l in layers:
-            l.to(device)
-            rotate_vo_duquant(l)
-            torch.cuda.empty_cache()
-            l.cpu()
 
+@torch.no_grad()
+def apply_rotate_vo_only(model):
+    device = next(model.parameters()).device
+    model.cpu()
+    layers = get_layers(model)
+    for l in layers:
+        l.to(device)
+        rotate_vo_duquant(l)
+        torch.cuda.empty_cache()
+        l.cpu()
     model.to(device)
 
+@torch.no_grad()
+def apply_rotate_debug(model, sz=4):
+    dim = get_dim(model)
+    head_dim = get_head_dim(model)
+    device = next(model.parameters()).device
+    model.cpu()
+    H = generate_hadamard_matrix(sz, torch.device("cpu"))
+    model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
 
+    # rotate_embedding(model, H)
+    layers = get_layers(model)
+    H = H.to(device)
+    for l in layers:
+        l.to(device)
+        # rotate_o(l, H)
+        # # rotate_vo(l, H)
+        # # rotate_vo_svd(l)
+        # rotate_vo_duquant(l)
+        # rotate_mlp(l, H)
+
+        norm = get_post_norm(l)
+        up, gate, down = get_up(l), get_gate(l),  get_down(l)
+        fuse_norm(norm, [up, gate])
+        rotate(up, H)
+        rotate(gate, H)
+        defuse_norm(norm, [up, gate])
+        rotate_r(down, H)
+        add_rotate_post(norm, H)
+        add_rotate_post(down, H)
+
+        # add_rotate_post(get_pre_norm(l), H)
+        # add_rotate_pre(get_q(l), H)
+        # add_rotate_pre(get_k(l), H)
+        # add_rotate_pre(get_v(l), H)
+        # rotate_qkv(l, H)
+        # rotate_o(l, H)
+        # add_rotate_post(get_o(l), H)
+        torch.cuda.empty_cache()
+        l.cpu()
+    # rotate_head(model, H.cpu())

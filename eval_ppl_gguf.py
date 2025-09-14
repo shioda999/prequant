@@ -5,6 +5,7 @@ from llama_cpp import Llama
 from datasets import load_dataset, load_from_disk
 from transformers import AutoTokenizer
 import argparse
+import os
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -59,7 +60,7 @@ def eval_ppl_wikitext_llama_cpp(model, testenc, device=None):
 if __name__ == "__main__":
     args = get_args()
     model = Llama(args.gguf, n_gpu_layers=-1, n_ctx=4096, n_batch=512, logits_all=True)
-    tokenizer = AutoTokenizer.from_pretrained('Qwen/Qwen3-1.7B')
+    tokenizer = AutoTokenizer.from_pretrained(os.path.dirname(args.gguf))
     dataset = load_from_disk("./data/wikitext_test")
     testloader = tokenizer("\n\n".join(dataset['text']), return_tensors='pt')
     ppl = eval_ppl_wikitext_llama_cpp(model, testloader)
