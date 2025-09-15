@@ -43,7 +43,7 @@ def get_head(model):
     return model.lm_head
 
 def get_head_dim(layer):
-    if hasattr(layer.config, "headdim"):
+    if hasattr(layer.config, "head_dim"):
         dim = layer.config.head_dim
     else:
         dim = get_dim(layer) // get_num_heads(layer)
