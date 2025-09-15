@@ -91,19 +91,28 @@ def calc_metric(m, t=False):
     return t / t.mean()
 
 @torch.no_grad()
-def apply_permute(model, sz=32, m=1):
+def apply_permute(model, m=1):
     model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
-    
-    # metric = calc_metric(get_embed(model))
     perm_func = [get_perm, get_perm_v2, get_perm_v3][m]
-    # perm = perm_func[m](metric, sz)
-    
-    # permute_embedding(model, perm)
     layers = get_layers(model)
     for l in layers:
-        # permute_qkv(l, perm)
         permute_vo(l, perm_func)
-        # permute_o(l, perm)
-        # permute_mlp(l, perm)
-        permute_mlp_v2(l, get_perm)
-    # permute_head(model, perm)
+        permute_mlp_v2(l, perm_func)
+
+@torch.no_grad()
+def apply_global_permute(model, m=0):
+    model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
+    
+    layers = get_layers(model)
+    perm_func = [get_perm, get_perm_v2, get_perm_v3][m]
+    metric = 0
+    for l in layers:
+      metric += calc_metric(get_gate(l))
+    perm = perm_func(metric)
+    
+    permute_embedding(model, perm)
+    for l in layers:
+        permute_qkv(l, perm)
+        permute_o(l, perm)
+        permute_mlp(l, perm)
+    permute_head(model, perm)
