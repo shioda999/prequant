@@ -17,7 +17,7 @@ def fuse_norm(norm, fcs):
 @torch.no_grad()
 def defuse_norm(norm, fcs, p=2):
     # s = norm.prev_weight.reshape(sz, -1).abs().mean(dim=0)[None].expand((sz, -1)).reshape(-1).sqrt()
-    s = torch.concat([normalize(fc.weight.data) for fc in fcs]).reshape(-1, fcs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p).pow(0.5)
+    s = torch.concat([normalize(fc.weight.data) for fc in fcs]).reshape(-1, fcs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p)#.pow(0.5)
     for fc in fcs:
         fc.weight.data = fc.weight.data.float().div(s).to(fc.prev_dtype)
         del fc.prev_dtype
@@ -134,7 +134,7 @@ def add_rotate_post(m, H):
     m.__class__ = PostRot
     
 @torch.no_grad()
-def apply_rotate(model, sz=32):
+def _apply_rotate(model, sz=32):
     device = next(model.parameters()).device
     model.cpu()
     H = generate_hadamard_matrix(sz, torch.device("cpu"))
@@ -156,6 +156,34 @@ def apply_rotate(model, sz=32):
         l.cpu()
     rotate_head(model, H.cpu())
 
+@torch.no_grad()
+def apply_rotate(model, sz=32, protect=1):
+    device = next(model.parameters()).device
+    model.cpu()
+    dim = get_dim(model)
+    H = generate_hadamard_matrix(sz, torch.device("cpu"))
+    H2 = torch.eye(sz, device=H.device, dtype=H.dtype)
+    model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
+
+    n = dim // sz
+    if protect > 0:
+        H_list = [H2 for _ in range(protect)] + [H for _ in range(n - protect)]
+        H = torch.block_diag(*H_list)
+    rotate_embedding(model, H)
+    layers = get_layers(model)
+    H = H.to(device)
+    for l in layers:
+        l.to(device)
+        rotate_o(l, H)
+        # rotate_vo(l, H)
+        # rotate_vo_svd(l)
+        rotate_vo_duquant(l)
+        rotate_mlp(l, H)
+
+        rotate_qkv(l, H)
+        torch.cuda.empty_cache()
+        l.cpu()
+    rotate_head(model, H.cpu())
 
 @torch.no_grad()
 def apply_rotate_vo_only(model):
