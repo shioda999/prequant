@@ -107,12 +107,10 @@ def apply_global_permute(model, m=0):
     perm_func = [get_perm, get_perm_v2, get_perm_v3][m]
     metric = 0
     for i, l in enumerate(layers):
-      norm, q = get_pre_norm(l), get_q(l)
-      fuse_norm(norm, [q])
-      me = q.weight.abs().pow(2).mean(dim=0).sqrt()#calc_metric(q)
-      #print(i, me.max(), me.min(), me.mean())
-      metric += me
-      defuse_norm(norm, [q])
+      norm, gate = get_post_norm(l), get_gate(l)
+      fuse_norm(norm, [gate])
+      metric += calc_metric(gate)
+      defuse_norm(norm, [gate])
     perm = perm_func(metric)
     
     permute_embedding(model, perm)
