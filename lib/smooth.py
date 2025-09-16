@@ -3,10 +3,12 @@ from .get_module import *
 from .utils import *
 
 @torch.no_grad()
-def smooth_fn(As, Bs, p=2):
-    s = torch.concat([normalize(B.weight) for B in Bs]).reshape(-1, Bs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p)
-    sa = s[:,None] if len(As[0].weight.shape) > 1 else s
-    for A in As: A.weight.data = A.weight.float().mul_(sa).to(A.weight.dtype)
+def smooth_fn(As, Bs, p=2, a=0.5):
+    sa = torch.concat([normalize(A.weight) for A in As]).abs().pow(p).mean(dim=0).pow(1/p)
+    sb = torch.concat([normalize(B.weight) for B in Bs]).reshape(-1, Bs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p)
+    s = sa.pow(-a) * sb.pow(a)
+    s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
+    for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
     for B in Bs: B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
 
 def smooth_qkv(layer):
