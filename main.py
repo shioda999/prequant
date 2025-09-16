@@ -94,7 +94,7 @@ def main():
     # apply_permute(model, m=1)
     apply_rotate(model, 32, 4)
     # apply_rotate_vo_only(model)
-    # apply_smooth(model)
+    apply_smooth(model)
 
     undivide(model)
 
