@@ -6,8 +6,8 @@ from .utils import *
 def smooth_fn(As, Bs, p=2):
     s = torch.concat([normalize(B.weight) for B in Bs]).reshape(-1, Bs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p)
     sa = s[:,None] if len(As[0].weight.shape) > 1 else s
-    for A in As: A.weight.data.float().mul_(sa).to(A.weight.dtype)
-    for B in Bs: B.weight.data.float().div_(s).to(B.weight.dtype)
+    for A in As: A.weight.data = A.weight.float().mul_(sa).to(A.weight.dtype)
+    for B in Bs: B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
 
 def smooth_qkv(layer):
     norm = get_pre_norm(layer)

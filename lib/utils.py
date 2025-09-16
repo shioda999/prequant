@@ -57,7 +57,7 @@ def undivide(model):
     num_kv_heads = get_num_kv_heads(model)
     for l in layers:
         attn, mlp = l.self_attn, l.mlp
-        if model.qkv_merge and hasattr(attn, "q_proj"):
+        if hasattr(attn, "qkv_merge") and model.qkv_merge:
             del attn.qkv_proj
             w_q = attn.q_proj.weight
             o_dim, i_dim = w_q.shape
@@ -69,7 +69,7 @@ def undivide(model):
 
             del attn.q_proj, attn.k_proj, attn.v_proj
 
-        if model.gate_up_merge and hasattr(mlp, "gate_proj"):
+        if hasattr(mlp, "gate_up_merge") and model.gate_up_merge:
             del mlp.gate_up_proj
             w_gate = mlp.gate_proj.weight
             o_dim, i_dim = w_gate.shape
@@ -88,4 +88,68 @@ class ConcatModule:
         y = torch.concat([m(x) for m in self.modules], dim=-1)
         return y
 
+def q_err(m, nbits=4, group_sz=128):
+    w = m.weight.reshape(-1, group_sz)
+    Qp, Qn = 2 ** (nbits - 1) - 1, -2 ** (nbits - 1)
+    s = torch.maximum(w.max(dim=1, keepdim=True)[0] / Qp, w.min(dim=1, keepdim=True)[0] / Qn)
+    w_q = w.div(s).round_().clamp_(Qn, Qp).mul_(s)
+    return (w_q - w).div(s).float().pow(2).mean().sqrt().item()
+
+def calc_quantize_error(model):
+    result = {"!SUM": 0}
+
+    def register(m, labels, nbits=4):
+        err = q_err(m, nbits)
+        result["!SUM"] += err
+        for e in labels:
+            if e not in result: result[e] = 0
+            result[e] += err
+
+    register(get_embed(model), ["embed"])
+    layers = get_layers(model)
+    for i, l in enumerate(layers):
+        register(get_q(l), ["q", f"{i:02}"])
+        register(get_k(l), ["k", f"{i:02}"])
+        register(get_v(l), ["v", f"{i:02}"], 6)
+        register(get_o(l), ["o", f"{i:02}"])
+        register(get_gate(l), ["gate", f"{i:02}"])
+        register(get_up(l), ["up", f"{i:02}"])
+        register(get_down(l), ["down", f"{i:02}"], 6)
+    register(get_head(model), ["head"])
+
+    return result
     
+
+@torch.no_grad()
+def fuse_norm(norm, fcs):
+    for fc in fcs:
+        setattr(fc, "prev_dtype", fc.weight.dtype)
+        fc.weight.data = norm.weight.float() * fc.weight.float()
+    setattr(norm, "prev_weight", norm.weight.data.clone())
+    norm.weight.data = torch.ones_like(norm.weight, dtype=norm.weight.dtype)
+
+@torch.no_grad()
+def _defuse_norm(norm, fcs, p=2):
+    # s = norm.prev_weight.reshape(sz, -1).abs().mean(dim=0)[None].expand((sz, -1)).reshape(-1).sqrt()
+    s = torch.concat([normalize(fc.weight.data) for fc in fcs]).reshape(-1, fcs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p).pow(0.5)
+    for fc in fcs:
+        fc.weight.data = fc.weight.data.float().div(s).to(fc.prev_dtype)
+        del fc.prev_dtype
+    norm.weight.data = norm.weight.data.float().mul(s).to(norm.weight.dtype)
+    del norm.prev_weight
+
+@torch.no_grad()
+def defuse_norm(norm, fcs):
+    p = 2
+    s = 1#torch.concat([normalize(fc.weight.data) for fc in fcs]).reshape(-1, fcs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p).pow(0.5)
+    for fc in fcs:
+        fc.weight.data = fc.weight.float().div(norm.prev_weight).div(s).to(fc.prev_dtype)
+        del fc.prev_dtype
+    norm.weight.data = norm.prev_weight.mul(s).to(norm.weight.dtype)
+    del norm.prev_weight
+    
+
+@torch.no_grad()
+def mean_norm(norm, H):
+    t = norm.prev_weight.float().abs() @ H.abs()
+    norm.prev_weight = t

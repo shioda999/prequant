@@ -8,9 +8,10 @@ from lib.eval import eval_ppl
 from lib.convert import convert
 from lib.smooth import apply_smooth
 from lib.rotate import apply_rotate, apply_rotate_vo_only, apply_rotate_debug
-from lib.permute import apply_permute
+from lib.permute import apply_permute, apply_global_permute
 from lib.get_module import apply_config
 from lib.utils import *
+from pprint import pprint
 
 device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
 
@@ -19,11 +20,12 @@ def str2bool(s):
 
 def get_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--model', default='Qwen/Qwen3-0.6B')
     # parser.add_argument('--model', default='Qwen/Qwen3-1.7B')
     # parser.add_argument('--model', default='meta-llama/Llama-3.2-1B-Instruct')
     # parser.add_argument('--model', default='mistralai/Mistral-7B-Instruct-v0.3')
     # parser.add_argument('--model', default='microsoft/Phi-4-mini-instruct')
-    parser.add_argument('--model', default='microsoft/Phi-4-mini-instruct')
+    # parser.add_argument('--model', default='microsoft/Phi-4-mini-instruct')
     
     # benchmark
     parser.add_argument('--text_gen', type=str2bool, default=True) # 自己紹介文生成
@@ -81,16 +83,25 @@ def rotate(args):
 def main():
     args = get_args()
     model, tokenizer = get_model(args.model)
+
+    result = calc_quantize_error(model)
     
     divide(model)
     
     apply_config(model)
-    apply_permute(model, m=1)
-    apply_rotate(model)
-    # apply_rotate_vo_only(model)
     apply_smooth(model)
+    # apply_global_permute(model, m=1)
+    # apply_permute(model, m=1)
+    apply_rotate(model, 32)
+    # apply_rotate_vo_only(model)
+    # apply_smooth(model)
 
     undivide(model)
+
+    after = calc_quantize_error(model)
+
+    result.update({k + "_a": v for k, v in after.items()})
+    pprint(result)
 
     model.to(device)
     eval(args, model, tokenizer)

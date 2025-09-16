@@ -107,7 +107,10 @@ def apply_global_permute(model, m=0):
     perm_func = [get_perm, get_perm_v2, get_perm_v3][m]
     metric = 0
     for l in layers:
-      metric += calc_metric(get_gate(l))
+      norm, q = get_pre_norm(l), get_q(l)
+      fuse_norm(norm, [q])
+      metric += calc_metric(q)
+      defuse_norm(norm, [q])
     perm = perm_func(metric)
     
     permute_embedding(model, perm)
