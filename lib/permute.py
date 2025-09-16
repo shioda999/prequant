@@ -106,10 +106,12 @@ def apply_global_permute(model, m=0):
     layers = get_layers(model)
     perm_func = [get_perm, get_perm_v2, get_perm_v3][m]
     metric = 0
-    for l in layers:
+    for i, l in enumerate(layers):
       norm, q = get_pre_norm(l), get_q(l)
       fuse_norm(norm, [q])
-      metric += calc_metric(q)
+      me = q.weight.abs().pow(2).mean(dim=0).sqrt()#calc_metric(q)
+      #print(i, me.max(), me.min(), me.mean())
+      metric += me
       defuse_norm(norm, [q])
     perm = perm_func(metric)
     
