@@ -85,12 +85,6 @@ def get_perm_v3(metric, k=32):
     return idx
 
 @torch.no_grad()
-def calc_metric(m, t=False):
-    w = m.weight if not t else m.weight.T
-    t = w.abs().pow(2).mean(dim=0).sqrt()
-    return t / t.mean()
-
-@torch.no_grad()
 def apply_permute(model, m=1):
     model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
     perm_func = [get_perm, get_perm_v2, get_perm_v3][m]
@@ -108,9 +102,11 @@ def apply_global_permute(model, m=0):
     metric = 0
     for i, l in enumerate(layers):
       norm, gate = get_post_norm(l), get_gate(l)
-      fuse_norm(norm, [gate])
-      metric += calc_metric(gate)
-      defuse_norm(norm, [gate])
+      t = norm.weight.abs()
+      metric += t# / t.mean()
+    #   fuse_norm(norm, [gate])
+    #   metric += calc_metric(gate)
+    #   defuse_norm(norm, [gate])
     perm = perm_func(metric)
     
     permute_embedding(model, perm)

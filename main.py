@@ -7,7 +7,7 @@ from safetensors.torch import save_model, load_model
 from lib.eval import eval_ppl
 from lib.convert import convert
 from lib.smooth import apply_smooth
-from lib.rotate import apply_rotate, apply_rotate_vo_only, apply_rotate_debug
+from lib.rotate import apply_rotate, apply_rotate_vo_only, apply_rotate_debug, apply_rotate_test
 from lib.permute import apply_permute, apply_global_permute
 from lib.get_module import apply_config
 from lib.utils import *
@@ -20,8 +20,9 @@ def str2bool(s):
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', default='Qwen/Qwen3-0.6B')
+    # parser.add_argument('--model', default='Qwen/Qwen3-0.6B')
     # parser.add_argument('--model', default='Qwen/Qwen3-1.7B')
+    parser.add_argument('--model', default='Qwen/Qwen3-4B-Instruct-2507')
     # parser.add_argument('--model', default='meta-llama/Llama-3.2-1B-Instruct')
     # parser.add_argument('--model', default='mistralai/Mistral-7B-Instruct-v0.3')
     # parser.add_argument('--model', default='microsoft/Phi-4-mini-instruct')
@@ -40,17 +41,17 @@ def get_model(model_name):
 
 @torch.no_grad()
 def test_text_generation(model, tokenizer):
-    messages = [
-        # {"role": "system", "content": "You are chatbot."},
-        {"role": "user", "content": "List numbers from 1 to 10, each numbers is separated by comma."},
-        # {"role": "user", "content": "Please Introduce yourself."},
-        # {"role": "user", "content": "Please talk about global warming as long as you can."},
-    ]
     # messages = [
-    #     {"role": "user", "content": "こんにちは。何か適当に自己紹介して。"}
+    #     # {"role": "system", "content": "You are chatbot."},
+    #     {"role": "user", "content": "List numbers from 1 to 10, each numbers is separated by comma."},
+    #     # {"role": "user", "content": "Please Introduce yourself."},
+    #     # {"role": "user", "content": "Please talk about global warming as long as you can."},
     # ]
+    messages = [
+        {"role": "user", "content": "こんにちは。何か適当に自己紹介して。/nothink"}
+    ]
     pipe = pipeline("text-generation", model, tokenizer=tokenizer)
-    ret = pipe(messages, max_length=100)
+    ret = pipe(messages, max_length=200)
     print(f"\nOUTPUT:=====\n{ret[0]['generated_text'][-1]['content']}\n============")
 
 def save_compact_dataset(dataset):
@@ -89,19 +90,24 @@ def main():
     divide(model)
     
     apply_config(model)
-    # apply_smooth(model)
-    apply_global_permute(model, m=0)
-    apply_permute(model, m=1)
-    apply_rotate(model, 32, 0)
+
+    apply_rotate_test(model)
+    # apply_rotate(model, protect=3)
+    # apply_global_permute(model, m=0)
+    # apply_permute(model, m=1)
+    # apply_rotate(model)
+    # apply_rotate(model, 2)
     # apply_rotate_vo_only(model)
     # apply_smooth(model)
 
-    undivide(model)
-
     after = calc_quantize_error(model)
 
+    apply_quantize(model)
+
+    undivide(model)
+
     result.update({k + "_a": v for k, v in after.items()})
-    pprint(result)
+    # pprint(result)
 
     model.to(device)
     eval(args, model, tokenizer)

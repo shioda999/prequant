@@ -6,7 +6,6 @@ from .utils import *
 def smooth_fn(As, Bs, p=2, a=0., b=0.5):
     sa = torch.concat([normalize(A.weight)[..., None] for A in As]).reshape(As[0].weight.shape[0], -1).abs().pow(p).mean(dim=1).pow(1/p)
     sb = torch.concat([normalize(B.weight) for B in Bs]).reshape(-1, Bs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p)
-    print(sa.shape, sb.shape)
     s = sa.pow(-a) * sb.pow(b)
     s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
     for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)

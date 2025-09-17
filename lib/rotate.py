@@ -185,6 +185,63 @@ def apply_rotate_vo_only(model):
     model.to(device)
 
 @torch.no_grad()
+def apply_rotate_test(model, sz=32):
+    device = next(model.parameters()).device
+    model.cpu()
+    dim = get_dim(model)
+    H = generate_hadamard_matrix(sz, torch.device("cpu"))
+    eye = torch.eye(sz, device=H.device, dtype=H.dtype)
+    model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
+
+    n = dim // sz
+    layers = get_layers(model)
+    metric = 0
+    for l in layers:
+        norm, fc = get_post_norm(l), get_up(l)
+        fuse_norm(norm, [fc])
+        t = calc_metric(fc)
+        metric += t.reshape(-1, 32).std(dim=-1)
+        defuse_norm(norm, [fc])
+    median = metric.median()
+    mad = (metric - median).abs().median()
+    z = ((metric - median) / (1.4826 * mad)).tolist()
+    flags = [v < 3.5 for v in z]
+    # flags = [v < 3.5 for v in z]
+    print(z)
+    print(flags)
+    # flags = [1 for _ in range(n)]
+    H_list = [H if f else eye for f in flags]
+    H = torch.block_diag(*H_list)
+    print(H)
+    rotate_embedding(model, H)
+    H = H.to(device)
+    for l in layers:
+        l.to(device)
+        rotate_o(l, H)
+        # print("q", get_q(l).weight.abs().max())
+        # print("k", get_k(l).weight.abs().max())
+        # print("v", get_v(l).weight.abs().max())
+        # print("o", get_o(l).weight.abs().max())
+        # rotate_vo_duquant(l)
+
+        rotate_qkv(l, H)
+        # print("qa", get_q(l).weight.abs().max())
+        # print("ka", get_k(l).weight.abs().max())
+        # print("va", get_v(l).weight.abs().max())
+        # print("oa", get_o(l).weight.abs().max())
+
+        # print("g", get_gate(l).weight.abs().max())
+        # print("u", get_up(l).weight.abs().max())
+        # print("d", get_down(l).weight.abs().max())
+        rotate_mlp(l, H)
+        # print("ga", get_gate(l).weight.abs().max())
+        # print("ua", get_up(l).weight.abs().max())
+        # print("da", get_down(l).weight.abs().max())
+        torch.cuda.empty_cache()
+        l.cpu()
+    rotate_head(model, H.cpu())
+
+@torch.no_grad()
 def apply_rotate_debug(model, sz=4):
     dim = get_dim(model)
     head_dim = get_head_dim(model)

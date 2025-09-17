@@ -88,12 +88,18 @@ class ConcatModule:
         y = torch.concat([m(x) for m in self.modules], dim=-1)
         return y
 
-def q_err(m, nbits=4, group_sz=128):
-    w = m.weight.reshape(-1, group_sz)
+def quantize(w, nbits=4, group_sz=128):
+    shape, dtype = w.shape, w.dtype
+    w = w.reshape(-1, group_sz).float()
     Qp, Qn = 2 ** (nbits - 1) - 1, -2 ** (nbits - 1)
     s = torch.maximum(w.max(dim=1, keepdim=True)[0] / Qp, w.min(dim=1, keepdim=True)[0] / Qn)
-    w_q = w.div(s).round_().clamp_(Qn, Qp).mul_(s)
-    return (w_q - w).div(s).float().pow(2).mean().sqrt().item()
+    w_q = w.div(s).round_().clamp_(Qn, Qp).mul_(s).reshape(shape).to(dtype)
+    return w_q, s
+
+def q_err(m, nbits=4, group_sz=128):
+    w = m.weight
+    w_q, s = quantize(w, nbits, group_sz)
+    return (w_q - w).reshape(-1, group_sz).float().div(s).pow(2).mean().sqrt().item()
 
 def calc_quantize_error(model):
     result = {"!SUM": 0}
@@ -138,14 +144,15 @@ def _defuse_norm(norm, fcs, p=2):
     norm.weight.data = norm.weight.data.float().mul(s).to(norm.weight.dtype)
     del norm.prev_weight
 
+def safe_divide(numerator, denominator, eps=1e-6):
+    return numerator / (denominator + (denominator.abs() < eps) * eps)
+
 @torch.no_grad()
 def defuse_norm(norm, fcs):
-    p = 2
-    s = 1#torch.concat([normalize(fc.weight.data) for fc in fcs]).reshape(-1, fcs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p).pow(0.5)
     for fc in fcs:
-        fc.weight.data = fc.weight.float().div(norm.prev_weight).div(s).to(fc.prev_dtype)
+        fc.weight.data = safe_divide(fc.weight.float(), norm.prev_weight.float()).to(fc.prev_dtype)
         del fc.prev_dtype
-    norm.weight.data = norm.prev_weight.mul(s).to(norm.weight.dtype)
+    norm.weight.data = norm.prev_weight.to(norm.weight.dtype)
     del norm.prev_weight
     
 
@@ -153,3 +160,21 @@ def defuse_norm(norm, fcs):
 def mean_norm(norm, H):
     t = norm.prev_weight.float().abs() @ H.abs()
     norm.prev_weight = t
+
+@torch.no_grad()
+def apply_quantize(model):
+    for l in get_layers(model):
+        for m in [get_q(l), get_k(l), get_o(l),
+                   get_gate(l), get_up(l)]:
+            m.weight.data, _ = quantize(m.weight)
+        for m in [get_v(l), get_down(l)]:
+            m.weight.data, _ = quantize(m.weight, 6)
+    
+    for m in [get_embed(model), get_head(model)]:
+        m.weight.data, _ = quantize(m.weight)
+
+@torch.no_grad()
+def calc_metric(m, t=False):
+    w = m.weight if not t else m.weight.T
+    t = w.abs().pow(2).mean(dim=0).sqrt()
+    return t / t.mean()
