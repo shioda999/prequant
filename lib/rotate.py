@@ -142,19 +142,20 @@ def _apply_rotate(model, sz=32):
     rotate_head(model, H.cpu())
 
 @torch.no_grad()
-def apply_rotate(model, sz=32, protect=0):
+def apply_rotate(model, sz=32, protect=0, protect_last=0):
     device = next(model.parameters()).device
     model.cpu()
     dim = get_dim(model)
     H = generate_hadamard_matrix(sz, torch.device("cpu"))
-    H2 = torch.eye(sz, device=H.device, dtype=H.dtype)
+    eye = torch.eye(sz, device=H.device, dtype=H.dtype)
     model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
 
     n = dim // sz
-    if protect == 0:
-        H_list = [H for _ in range(n)]
-    else:
-        H_list = [H2 for _ in range(protect)] + [H for _ in range(n - protect)]
+    H_list = []
+    if protect > 0: H_list += [eye for _ in range(protect)]
+    H_list += [H for _ in range(n - protect - protect_last)]
+    if protect_last > 0: H_list += [eye for _ in range(protect_last)]
+
     H = torch.block_diag(*H_list)
     rotate_embedding(model, H)
     layers = get_layers(model)
@@ -218,25 +219,9 @@ def apply_rotate_test(model, sz=32):
     for l in layers:
         l.to(device)
         rotate_o(l, H)
-        # print("q", get_q(l).weight.abs().max())
-        # print("k", get_k(l).weight.abs().max())
-        # print("v", get_v(l).weight.abs().max())
-        # print("o", get_o(l).weight.abs().max())
-        # rotate_vo_duquant(l)
-
+        rotate_vo_duquant(l)
         rotate_qkv(l, H)
-        # print("qa", get_q(l).weight.abs().max())
-        # print("ka", get_k(l).weight.abs().max())
-        # print("va", get_v(l).weight.abs().max())
-        # print("oa", get_o(l).weight.abs().max())
-
-        # print("g", get_gate(l).weight.abs().max())
-        # print("u", get_up(l).weight.abs().max())
-        # print("d", get_down(l).weight.abs().max())
         rotate_mlp(l, H)
-        # print("ga", get_gate(l).weight.abs().max())
-        # print("ua", get_up(l).weight.abs().max())
-        # print("da", get_down(l).weight.abs().max())
         torch.cuda.empty_cache()
         l.cpu()
     rotate_head(model, H.cpu())

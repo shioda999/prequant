@@ -20,9 +20,9 @@ def str2bool(s):
 
 def get_args():
     parser = argparse.ArgumentParser()
-    # parser.add_argument('--model', default='Qwen/Qwen3-0.6B')
+    parser.add_argument('--model', default='Qwen/Qwen3-0.6B')
     # parser.add_argument('--model', default='Qwen/Qwen3-1.7B')
-    parser.add_argument('--model', default='Qwen/Qwen3-4B-Instruct-2507')
+    # parser.add_argument('--model', default='Qwen/Qwen3-4B-Instruct-2507')
     # parser.add_argument('--model', default='meta-llama/Llama-3.2-1B-Instruct')
     # parser.add_argument('--model', default='mistralai/Mistral-7B-Instruct-v0.3')
     # parser.add_argument('--model', default='microsoft/Phi-4-mini-instruct')
@@ -51,7 +51,7 @@ def test_text_generation(model, tokenizer):
         {"role": "user", "content": "こんにちは。何か適当に自己紹介して。/nothink"}
     ]
     pipe = pipeline("text-generation", model, tokenizer=tokenizer)
-    ret = pipe(messages, max_length=200)
+    ret = pipe(messages, max_length=300)
     print(f"\nOUTPUT:=====\n{ret[0]['generated_text'][-1]['content']}\n============")
 
 def save_compact_dataset(dataset):
@@ -91,9 +91,10 @@ def main():
     
     apply_config(model)
 
-    apply_rotate_test(model)
+    apply_global_permute(model, m=0)
+    apply_rotate(model, protect_last=1)
+    # apply_rotate_test(model)
     # apply_rotate(model, protect=3)
-    # apply_global_permute(model, m=0)
     # apply_permute(model, m=1)
     # apply_rotate(model)
     # apply_rotate(model, 2)
