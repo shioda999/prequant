@@ -163,11 +163,8 @@ def apply_rotate(model, sz=32, protect=0, protect_last=0):
     for l in layers:
         l.to(device)
         rotate_o(l, H)
-        # rotate_vo(l, H)
-        # rotate_vo_svd(l)
         rotate_vo_duquant(l)
         rotate_mlp(l, H)
-
         rotate_qkv(l, H)
         torch.cuda.empty_cache()
         l.cpu()
