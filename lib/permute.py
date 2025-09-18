@@ -84,6 +84,12 @@ def get_perm_v3(metric, k=32):
     idx = idx[tmp_idx]
     return idx
 
+def get_perm_v4(metric, k=96):
+    idx = metric.argsort(dim=-1, descending=True)
+    other, protect = idx[:-k], idx[-k:]
+    idx = torch.concat([other.sort(dim=-1)[0], protect], dim=-1)
+    return idx
+
 @torch.no_grad()
 def apply_permute(model, m=1):
     model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
@@ -98,7 +104,7 @@ def apply_global_permute(model, m=0):
     model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
     
     layers = get_layers(model)
-    perm_func = [get_perm, get_perm_v2, get_perm_v3][m]
+    perm_func = [get_perm, get_perm_v2, get_perm_v3, get_perm_v4][m]
     metric = 0#1
     def normalize(x):
         if not isinstance(x, torch.Tensor): return x
@@ -119,6 +125,11 @@ def apply_global_permute(model, m=0):
         fuse_norm(norm, [fc])
         metric += calc_metric(fc)
         defuse_norm(norm, [fc])
+
+    # t = metric.tolist()
+    # t.sort()
+    # print(t)
+    # print(t[100])
     perm = perm_func(metric)
     
     permute_embedding(model, perm)
