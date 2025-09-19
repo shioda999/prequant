@@ -93,7 +93,6 @@ def main():
 
     # apply_rotate_test(model)
     apply_global_permute(model, m=3)
-    # apply_permute(model, m=0)
     apply_rotate(model, protect_last=3)
     # apply_rotate(model, protect=3)
     # apply_permute(model, m=1)
