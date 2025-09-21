@@ -96,22 +96,27 @@ def quantize(w, nbits=4, group_sz=128):
     w_q = w.div(s).round_().clamp_(Qn, Qp).mul_(s).reshape(shape).to(dtype)
     return w_q, s
 
-def q_err(m, nbits=4, group_sz=32, norm=None):
+def q_err(m, nbits=4, group_sz=32, norm=None, t=False):
     w = m.weight
     w_q, s = quantize(w, nbits, group_sz)
     delta = w_q - w
-    if norm is not None: delta.mul_(norm.weight)
-    return delta.reshape(-1, group_sz).float().pow(2).mean().sqrt().item()
+    if norm is not None:
+        delta.mul_(norm.weight)
+    if t is False:
+        return delta.reshape(w.shape[0],-1, group_sz).float().pow(2).mean(dim=-1).mean(dim=0)
+    else:
+        return delta.reshape(group_sz, -1).float().pow(2).mean(dim=-1)
 
 def calc_quantize_error(model):
     result = {"!SUM": 0}
 
-    def register(m, labels, nbits=4, norm=None):
-        err = q_err(m, nbits, norm=norm)
-        result["!SUM"] += err
+    def register(m, labels, nbits=4, norm=None, t=False):
+        err = q_err(m, nbits, norm=norm, t=t)
+        result["!SUM"] += err.mean()
         for e in labels:
-            if e not in result: result[e] = 0
-            result[e] += err
+            if e not in result: result[e] = err
+            elif result[e].shape != err.shape: result[e] = result[e].sum() + err.mean()
+            else: result[e] += err
 
     register(get_embed(model), ["embed"])
     layers = get_layers(model)
@@ -120,10 +125,10 @@ def calc_quantize_error(model):
         register(get_q(l), ["q", f"{i:02}"], norm=pre_norm)
         register(get_k(l), ["k", f"{i:02}"], norm=pre_norm)
         register(get_v(l), ["v", f"{i:02}"], 6, norm=pre_norm)
-        register(get_o(l), ["o", f"{i:02}"])
+        register(get_o(l), ["o", f"{i:02}"], t=True)
         register(get_gate(l), ["gate", f"{i:02}"], norm=post_norm)
         register(get_up(l), ["up", f"{i:02}"], norm=post_norm)
-        register(get_down(l), ["down", f"{i:02}"], 6)
+        register(get_down(l), ["down", f"{i:02}"], 6, t=True)
     register(get_head(model), ["head"], norm=get_head_norm(model))
 
     return result

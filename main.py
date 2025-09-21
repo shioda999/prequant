@@ -7,7 +7,7 @@ from safetensors.torch import save_model, load_model
 from lib.eval import eval_ppl
 from lib.convert import convert
 from lib.smooth import apply_smooth
-from lib.rotate import apply_rotate, apply_rotate_vo, apply_rotate_debug, apply_rotate_test
+from lib.rotate import apply_rotate, apply_rotate_vo, apply_rotate_adaptive
 from lib.permute import apply_permute, apply_global_permute
 from lib.get_module import apply_config
 from lib.utils import *
@@ -20,8 +20,8 @@ def str2bool(s):
 
 def get_args():
     parser = argparse.ArgumentParser()
-    # parser.add_argument('--model', default='Qwen/Qwen3-0.6B')
-    parser.add_argument('--model', default='Qwen/Qwen3-1.7B')
+    parser.add_argument('--model', default='Qwen/Qwen3-0.6B')
+    # parser.add_argument('--model', default='Qwen/Qwen3-1.7B')
     # parser.add_argument('--model', default='Qwen/Qwen3-4B-Instruct-2507')
     # parser.add_argument('--model', default='meta-llama/Llama-3.2-1B-Instruct')
     # parser.add_argument('--model', default='mistralai/Mistral-7B-Instruct-v0.3')
@@ -69,17 +69,6 @@ def eval(args, model, tokenizer):
         model.seqlen = 2048
         eval_ppl(model, tokenizer, device, datasets=["wikitext2"])
 
-def smooth(args):
-    model, tokenizer = get_model(args.model)
-    apply_smooth()
-    save_model(model, "model_smooth.safetensors")
-
-def rotate(args):
-    model, tokenizer = get_model(args.model)
-    apply_smooth()
-    apply_rotate()
-    save_model(model, "model_rotate.safetensors")
-
 @torch.no_grad()
 def main():
     args = get_args()
@@ -96,18 +85,33 @@ def main():
         norm_data[f"pos_{i:02}"] = get_post_norm(l).weight
 
     result = calc_quantize_error(model)
-    protect_n = apply_global_permute(model, m=0)
-    apply_rotate(model, protect=(protect_n+31)//32)
-    apply_rotate_vo(model)
-
+    apply_rotate(model)
     after = calc_quantize_error(model)
+
+    def get_loss(r, labels):
+        return sum([r[l] for l in labels])
+
+    labels = ["embed", "head"]
+    l1, l2 = get_loss(result, labels), get_loss(after, labels)
+    flags = l1 >= l2
+    # flags = torch.logical_and(l1 >= l2, l1 <= l2 * 2)
+    # flags = l1 <= l2 * 2
+    print(flags)
+    print(l1)
+    print(l2)
+    del model
+    model, tokenizer = get_model(args.model)
+
+    apply_config(model)
+    apply_rotate_vo(model)
+    apply_rotate_adaptive(model, flags=flags)
 
     apply_quantize(model)
 
     undivide(model)
 
-    result.update({k + "_a": v for k, v in after.items()})
-    pprint(result)
+    # result.update({k + "_a": v for k, v in after.items()})
+    # pprint(result)
 
     for i, l in enumerate(get_layers(model)):
         norm_data[f"pre_{i:02}a"] = get_pre_norm(l).weight

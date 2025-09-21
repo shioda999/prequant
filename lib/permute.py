@@ -122,21 +122,23 @@ def apply_global_permute(model, m=0):
         mad = (metric - v).abs().mean()
         z = ((metric - v) / (1.4826 * mad))
         print(z)
-        idx = torch.where(z < -5)[0]
+        idx = torch.where(z < -3.5)[0]
         small_idx.append(idx)
 
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[:10]):
         norm, norm2 = get_pre_norm(l), get_post_norm(l)
-        detect_small_value(norm.weight)
-        detect_small_value(norm2.weight)
-        # norm, fc = get_pre_norm(l), get_k(l)
-        # fuse_norm(norm, [fc])
+        # detect_small_value(norm.weight)
+        # detect_small_value(norm2.weight)
+        norm, fc = get_pre_norm(l), get_k(l)
+        fuse_norm(norm, [fc])
         # metric += calc_metric(fc)
-        # defuse_norm(norm, [fc])
-        # norm, fc = get_post_norm(l), get_up(l)
-        # fuse_norm(norm, [fc])
+        detect_small_value(calc_metric(fc))
+        defuse_norm(norm, [fc])
+        norm, fc = get_post_norm(l), get_up(l)
+        fuse_norm(norm, [fc])
         # metric += calc_metric(fc)
-        # defuse_norm(norm, [fc])
+        detect_small_value(calc_metric(fc))
+        defuse_norm(norm, [fc])
 
 
     perm = perm_func(metric)

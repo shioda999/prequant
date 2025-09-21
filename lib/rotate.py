@@ -170,6 +170,32 @@ def apply_rotate(model, sz=32, protect=0, protect_last=0):
     rotate_head(model, H.cpu())
 
 @torch.no_grad()
+def apply_rotate_adaptive(model, sz=32, flags=None):
+    device = next(model.parameters()).device
+    model.cpu()
+    dim = get_dim(model)
+    H = generate_hadamard_matrix(sz, torch.device("cpu"))
+    eye = torch.eye(sz, device=H.device, dtype=H.dtype)
+    model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
+
+    n = dim // sz
+    H_list = [H if f else eye for f in flags]
+
+    H = torch.block_diag(*H_list)
+    rotate_embedding(model, H)
+    layers = get_layers(model)
+    H = H.to(device)
+    for l in layers:
+        l.to(device)
+        rotate_o(l, H)
+        # rotate_vo_duquant(l)
+        rotate_mlp(l, H)
+        rotate_qkv(l, H)
+        torch.cuda.empty_cache()
+        l.cpu()
+    rotate_head(model, H.cpu())
+
+@torch.no_grad()
 def apply_rotate_vo(model):
     device = next(model.parameters()).device
     model.cpu()
