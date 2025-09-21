@@ -118,11 +118,11 @@ def apply_global_permute(model, m=0):
     
     small_idx = []
     def detect_small_value(metric):
-        median = metric.median()
-        mad = (metric - median).abs().mean()#median()
-        z = ((metric - median) / (1.4826 * mad))
+        v = metric.mean()
+        mad = (metric - v).abs().mean()
+        z = ((metric - v) / (1.4826 * mad))
         print(z)
-        idx = torch.where(z < -4.5)[0]
+        idx = torch.where(z < -5)[0]
         small_idx.append(idx)
 
     for i, l in enumerate(layers):
