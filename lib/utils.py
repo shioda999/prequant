@@ -96,16 +96,18 @@ def quantize(w, nbits=4, group_sz=128):
     w_q = w.div(s).round_().clamp_(Qn, Qp).mul_(s).reshape(shape).to(dtype)
     return w_q, s
 
-def q_err(m, nbits=4, group_sz=128):
+def q_err(m, nbits=4, group_sz=32, norm=None):
     w = m.weight
     w_q, s = quantize(w, nbits, group_sz)
-    return (w_q - w).reshape(-1, group_sz).float().div(s).pow(2).mean().sqrt().item()
+    delta = w_q - w
+    if norm is not None: delta.mul_(norm.weight)
+    return delta.reshape(-1, group_sz).float().pow(2).mean().sqrt().item()
 
 def calc_quantize_error(model):
     result = {"!SUM": 0}
 
-    def register(m, labels, nbits=4):
-        err = q_err(m, nbits)
+    def register(m, labels, nbits=4, norm=None):
+        err = q_err(m, nbits, norm=norm)
         result["!SUM"] += err
         for e in labels:
             if e not in result: result[e] = 0
@@ -114,14 +116,15 @@ def calc_quantize_error(model):
     register(get_embed(model), ["embed"])
     layers = get_layers(model)
     for i, l in enumerate(layers):
-        register(get_q(l), ["q", f"{i:02}"])
-        register(get_k(l), ["k", f"{i:02}"])
-        register(get_v(l), ["v", f"{i:02}"], 6)
+        pre_norm, post_norm = get_pre_norm(l), get_post_norm(l)
+        register(get_q(l), ["q", f"{i:02}"], norm=pre_norm)
+        register(get_k(l), ["k", f"{i:02}"], norm=pre_norm)
+        register(get_v(l), ["v", f"{i:02}"], 6, norm=pre_norm)
         register(get_o(l), ["o", f"{i:02}"])
-        register(get_gate(l), ["gate", f"{i:02}"])
-        register(get_up(l), ["up", f"{i:02}"])
+        register(get_gate(l), ["gate", f"{i:02}"], norm=post_norm)
+        register(get_up(l), ["up", f"{i:02}"], norm=post_norm)
         register(get_down(l), ["down", f"{i:02}"], 6)
-    register(get_head(model), ["head"])
+    register(get_head(model), ["head"], norm=get_head_norm(model))
 
     return result
     
@@ -158,7 +161,7 @@ def defuse_norm(norm, fcs):
 
 @torch.no_grad()
 def mean_norm(norm, H):
-    t = norm.prev_weight.float().abs() @ H.abs()
+    t = H.T.abs() @ norm.prev_weight.abs().float() * norm.prev_weight.float().sign()
     norm.prev_weight = t
 
 @torch.no_grad()

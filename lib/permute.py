@@ -105,26 +105,22 @@ def apply_global_permute(model, m=0):
     
     layers = get_layers(model)
     perm_func = [get_perm, get_perm_v2, get_perm_v3, get_perm_v4][m]
-    metric = 0#1
+    metric = 0
+    metric += calc_metric(get_embed(model))
+    norm, fc = get_head_norm(model), get_head(model)
+    # fuse_norm(norm, [fc])
+    # metric += calc_metric(fc)
+    # defuse_norm(norm, [fc])
     def normalize(x):
         if not isinstance(x, torch.Tensor): return x
         return x / x.max() * 1000
-    for i, l in enumerate(layers):
-        norm, norm2 = get_pre_norm(l), get_post_norm(l)
-        # metric = normalize(metric) * norm.weight.abs()
-        # metric = normalize(metric) * norm2.weight.abs()
-        # metric += norm.weight.abs().log() + norm2.weight.abs().log()
-        
-        # metric *= norm.weight.abs() / norm.weight.abs().mean() * norm2.weight.abs() / norm2.weight.abs().mean()
-        # metric = (metric - metric.min()) / (metric.max() - metric.min()) + 1e-5
-        # print(metric)
-        norm = get_post_norm(l)
-        fc = get_up(l)#get_gate(l)
-        # t = norm.weight.abs()
-        # metric += t# / t.mean()
-        fuse_norm(norm, [fc])
-        metric += calc_metric(fc)
-        defuse_norm(norm, [fc])
+    # for i, l in enumerate(layers):
+    #     norm, norm2 = get_pre_norm(l), get_post_norm(l)
+    #     norm = get_post_norm(l)
+    #     fc = get_up(l)
+    #     fuse_norm(norm, [fc])
+    #     metric += calc_metric(fc)
+    #     defuse_norm(norm, [fc])
 
     # t = metric.tolist()
     # t.sort()

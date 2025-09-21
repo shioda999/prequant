@@ -85,15 +85,21 @@ def main():
     args = get_args()
     model, tokenizer = get_model(args.model)
 
-    result = calc_quantize_error(model)
     
     divide(model)
     
     apply_config(model)
 
+    norm_data = {}
+    for i, l in enumerate(get_layers(model)):
+        norm_data[f"pre_{i:02}"] = get_pre_norm(l).weight
+        norm_data[f"pos_{i:02}"] = get_post_norm(l).weight
+
+    result = calc_quantize_error(model)
     # apply_rotate_test(model)
-    apply_global_permute(model, m=3)
-    apply_rotate(model, protect_last=3)
+    apply_global_permute(model, m=0)
+    n = get_dim(model) // 32
+    apply_rotate(model)
     # apply_rotate(model, protect=3)
     # apply_permute(model, m=1)
     # apply_rotate(model)
@@ -108,7 +114,12 @@ def main():
     undivide(model)
 
     result.update({k + "_a": v for k, v in after.items()})
-    # pprint(result)
+    pprint(result)
+
+    for i, l in enumerate(get_layers(model)):
+        norm_data[f"pre_{i:02}a"] = get_pre_norm(l).weight
+        norm_data[f"pos_{i:02}a"] = get_post_norm(l).weight
+    # pprint(norm_data)
 
     model.to(device)
     eval(args, model, tokenizer)

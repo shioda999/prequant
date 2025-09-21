@@ -135,7 +135,6 @@ def _apply_rotate(model, sz=32):
         # rotate_vo_svd(l)
         rotate_vo_duquant(l)
         rotate_mlp(l, H)
-
         rotate_qkv(l, H)
         torch.cuda.empty_cache()
         l.cpu()
@@ -152,9 +151,9 @@ def apply_rotate(model, sz=32, protect=0, protect_last=0):
 
     n = dim // sz
     H_list = []
-    if protect > 0: H_list += [eye for _ in range(protect)]
+    H_list += [eye for _ in range(protect)]
     H_list += [H for _ in range(n - protect - protect_last)]
-    if protect_last > 0: H_list += [eye for _ in range(protect_last)]
+    H_list += [eye for _ in range(protect_last)]
 
     H = torch.block_diag(*H_list)
     rotate_embedding(model, H)
@@ -163,7 +162,7 @@ def apply_rotate(model, sz=32, protect=0, protect_last=0):
     for l in layers:
         l.to(device)
         rotate_o(l, H)
-        rotate_vo_duquant(l)
+        # rotate_vo_duquant(l)
         rotate_mlp(l, H)
         rotate_qkv(l, H)
         torch.cuda.empty_cache()
