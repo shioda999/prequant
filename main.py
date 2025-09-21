@@ -7,7 +7,7 @@ from safetensors.torch import save_model, load_model
 from lib.eval import eval_ppl
 from lib.convert import convert
 from lib.smooth import apply_smooth
-from lib.rotate import apply_rotate, apply_rotate_vo_only, apply_rotate_debug, apply_rotate_test
+from lib.rotate import apply_rotate, apply_rotate_vo, apply_rotate_debug, apply_rotate_test
 from lib.permute import apply_permute, apply_global_permute
 from lib.get_module import apply_config
 from lib.utils import *
@@ -20,8 +20,8 @@ def str2bool(s):
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', default='Qwen/Qwen3-0.6B')
-    # parser.add_argument('--model', default='Qwen/Qwen3-1.7B')
+    # parser.add_argument('--model', default='Qwen/Qwen3-0.6B')
+    parser.add_argument('--model', default='Qwen/Qwen3-1.7B')
     # parser.add_argument('--model', default='Qwen/Qwen3-4B-Instruct-2507')
     # parser.add_argument('--model', default='meta-llama/Llama-3.2-1B-Instruct')
     # parser.add_argument('--model', default='mistralai/Mistral-7B-Instruct-v0.3')
@@ -97,9 +97,11 @@ def main():
 
     result = calc_quantize_error(model)
     # apply_rotate_test(model)
-    apply_global_permute(model, m=0)
-    n = get_dim(model) // 32
+    # apply_global_permute(model, m=3)
+    # n = get_dim(model) // 32
     apply_rotate(model)
+    apply_rotate_vo(model)
+    apply_smooth(model)
     # apply_rotate(model, protect=3)
     # apply_permute(model, m=1)
     # apply_rotate(model)

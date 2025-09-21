@@ -33,7 +33,8 @@ def permute_vo(layer, perm_func=None):
     mv, mo = calc_metric(v, t=True), calc_metric(o)
     head_dim = get_head_dim(layer)
     ratio = mo.shape[0] // mv.shape[0]
-    metric = mv + mo.reshape(ratio,-1).mean(dim=0)
+    # metric = mv + mo.reshape(ratio,-1).mean(dim=0)
+    metric = mo.reshape(ratio,-1).mean(dim=0)
     metric = metric.reshape(-1, head_dim)
     perm_v = torch.concat([perm_func(m) + head_dim * i for i, m in enumerate(metric)])
     perm_o = torch.concat([torch.concat([perm_func(m) + head_dim * (i * ratio + j) for j in range(ratio)]) for i, m in enumerate(metric)])

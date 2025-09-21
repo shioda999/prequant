@@ -170,7 +170,7 @@ def apply_rotate(model, sz=32, protect=0, protect_last=0):
     rotate_head(model, H.cpu())
 
 @torch.no_grad()
-def apply_rotate_vo_only(model):
+def apply_rotate_vo(model):
     device = next(model.parameters()).device
     model.cpu()
     layers = get_layers(model)
