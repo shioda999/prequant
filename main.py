@@ -20,8 +20,8 @@ def str2bool(s):
 
 def get_args():
     parser = argparse.ArgumentParser()
-    # parser.add_argument('--model', default='Qwen/Qwen3-0.6B')
-    parser.add_argument('--model', default='Qwen/Qwen3-1.7B')
+    parser.add_argument('--model', default='Qwen/Qwen3-0.6B')
+    # parser.add_argument('--model', default='Qwen/Qwen3-1.7B')
     # parser.add_argument('--model', default='Qwen/Qwen3-4B-Instruct-2507')
     # parser.add_argument('--model', default='meta-llama/Llama-3.2-1B-Instruct')
     # parser.add_argument('--model', default='mistralai/Mistral-7B-Instruct-v0.3')
@@ -96,18 +96,9 @@ def main():
         norm_data[f"pos_{i:02}"] = get_post_norm(l).weight
 
     result = calc_quantize_error(model)
-    # apply_rotate_test(model)
-    # apply_global_permute(model, m=3)
-    # n = get_dim(model) // 32
-    apply_rotate(model)
+    protect_n = apply_global_permute(model, m=0)
+    apply_rotate(model, protect=(protect_n+31)//32)
     apply_rotate_vo(model)
-    apply_smooth(model)
-    # apply_rotate(model, protect=3)
-    # apply_permute(model, m=1)
-    # apply_rotate(model)
-    # apply_rotate(model, 2)
-    # apply_rotate_vo_only(model)
-    # apply_smooth(model)
 
     after = calc_quantize_error(model)
 
