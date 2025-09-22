@@ -72,7 +72,8 @@ def eval(args, model, tokenizer):
 @torch.no_grad()
 def main():
     args = get_args()
-    model, tokenizer = get_model(args.model)
+    model_name = args.model
+    model, tokenizer = get_model(model_name)
 
     
     divide(model)
@@ -84,22 +85,20 @@ def main():
         norm_data[f"pre_{i:02}"] = get_pre_norm(l).weight
         norm_data[f"pos_{i:02}"] = get_post_norm(l).weight
 
-    labels = ["embed", "head"]
+    labels = ["embed"]
+    apply_global_permute(model)
     l1 = calc_quantize_error_v2(model, labels)
     apply_rotate(model)
     l2 = calc_quantize_error_v2(model, labels)
     flags = l1 >= l2
-    flags, idx = flags.sort()
-    perm = ((idx * 32)[:,None] + torch.arange(0, 32)).reshape(-1)
-    apply_global_permute_v2(model, perm)
     print(flags)
     print(l1)
     print(l2)
     del model, tokenizer
-    model, tokenizer = get_model(args.model)
-    apply_global_permute_v2(model, perm)
+    model, tokenizer = get_model(model_name)
 
     apply_config(model)
+    apply_global_permute(model)
     apply_rotate_vo(model)
     apply_rotate_adaptive(model, flags=flags)
 

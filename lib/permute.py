@@ -104,62 +104,15 @@ def apply_permute(model, m=1):
 def apply_global_permute(model, m=0):
     model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
     
-    layers = get_layers(model)
     perm_func = [get_perm, get_perm_v2, get_perm_v3, get_perm_v4][m]
     metric = 0
-    metric += calc_metric(get_embed(model))
-    norm, fc = get_head_norm(model), get_head(model)
-    # fuse_norm(norm, [fc])
-    # metric += calc_metric(fc)
-    # defuse_norm(norm, [fc])
-    def normalize(x):
-        if not isinstance(x, torch.Tensor): return x
-        return x / x.max() * 1000
-    
-    small_idx = []
-    def detect_small_value(metric):
-        v = metric.mean()
-        mad = (metric - v).abs().mean()
-        z = ((metric - v) / (1.4826 * mad))
-        print(z)
-        idx = torch.where(z < -3.5)[0]
-        small_idx.append(idx)
-
-    for i, l in enumerate(layers[:10]):
-        norm, norm2 = get_pre_norm(l), get_post_norm(l)
-        # detect_small_value(norm.weight)
-        # detect_small_value(norm2.weight)
-        norm, fc = get_pre_norm(l), get_k(l)
-        fuse_norm(norm, [fc])
-        # metric += calc_metric(fc)
-        detect_small_value(calc_metric(fc))
-        defuse_norm(norm, [fc])
-        norm, fc = get_post_norm(l), get_up(l)
-        fuse_norm(norm, [fc])
-        # metric += calc_metric(fc)
-        detect_small_value(calc_metric(fc))
-        defuse_norm(norm, [fc])
-
-
+    emb = get_embed(model).weight
+    metric = emb.abs().pow(2).mean(dim=0).sqrt()
     perm = perm_func(metric)
-    small_idx = torch.unique(torch.concat(small_idx))
-    print(small_idx)
-    print(len(small_idx))
-    perm = torch.concat([small_idx, perm])
-    perm = torch.unique(perm)
-    
-    permute_embedding(model, perm)
-    for l in layers:
-        permute_qkv(l, perm)
-        permute_o(l, perm)
-        permute_mlp(l, perm)
-    permute_head(model, perm)
-
-    return len(small_idx)
-
+    apply_global_permute_v2(model, perm)
 
 @torch.no_grad()
-def apply_global_permute_v2(model, perm, m=0):
+def apply_global_permute_v2(model, perm):
     model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
     
     layers = get_layers(model)
