@@ -107,6 +107,7 @@ def q_err(m, nbits=4, group_sz=32, norm=None, t=False):
     else:
         return delta.reshape(group_sz, -1).float().pow(2).mean(dim=-1)
 
+@torch.no_grad()
 def calc_quantize_error(model):
     result = {"!SUM": 0}
 
@@ -133,6 +134,7 @@ def calc_quantize_error(model):
 
     return result
 
+@torch.no_grad()
 def calc_quantize_error_v2(model, labels):
     error = 0
     if "embed" in labels:
