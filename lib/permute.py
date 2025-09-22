@@ -156,3 +156,16 @@ def apply_global_permute(model, m=0):
     permute_head(model, perm)
 
     return len(small_idx)
+
+
+@torch.no_grad()
+def apply_global_permute_v2(model, perm, m=0):
+    model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
+    
+    layers = get_layers(model)
+    permute_embedding(model, perm)
+    for l in layers:
+        permute_qkv(l, perm)
+        permute_o(l, perm)
+        permute_mlp(l, perm)
+    permute_head(model, perm)

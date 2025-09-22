@@ -8,7 +8,7 @@ from lib.eval import eval_ppl
 from lib.convert import convert
 from lib.smooth import apply_smooth
 from lib.rotate import apply_rotate, apply_rotate_vo, apply_rotate_adaptive
-from lib.permute import apply_permute, apply_global_permute
+from lib.permute import apply_permute, apply_global_permute, apply_global_permute_v2
 from lib.get_module import apply_config
 from lib.utils import *
 from pprint import pprint
@@ -89,11 +89,15 @@ def main():
     apply_rotate(model)
     l2 = calc_quantize_error_v2(model, labels)
     flags = l1 >= l2
+    flags, idx = flags.sort()
+    perm = ((idx * 32)[:,None] + torch.arange(0, 32)).reshape(-1)
+    apply_global_permute_v2(model, perm)
     print(flags)
     print(l1)
     print(l2)
     del model, tokenizer
     model, tokenizer = get_model(args.model)
+    apply_global_permute_v2(model, perm)
 
     apply_config(model)
     apply_rotate_vo(model)
