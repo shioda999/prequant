@@ -57,8 +57,8 @@ def undivide(model):
     num_kv_heads = get_num_kv_heads(model)
     for l in layers:
         attn, mlp = l.self_attn, l.mlp
-        if hasattr(attn, "qkv_merge") and model.qkv_merge:
-            del attn.qkv_proj
+        if hasattr(model, "qkv_merge") and model.qkv_merge:
+            del model.qkv_merge
             w_q = attn.q_proj.weight
             o_dim, i_dim = w_q.shape
             attn.qkv_proj = torch.nn.Linear(i_dim, head_dim * (num_heads + num_kv_heads * 2),
@@ -69,8 +69,8 @@ def undivide(model):
 
             del attn.q_proj, attn.k_proj, attn.v_proj
 
-        if hasattr(mlp, "gate_up_merge") and model.gate_up_merge:
-            del mlp.gate_up_proj
+        if hasattr(model, "gate_up_merge") and model.gate_up_merge:
+            del model.gate_up_merge
             w_gate = mlp.gate_proj.weight
             o_dim, i_dim = w_gate.shape
             mlp.gate_up_proj = torch.nn.Linear(i_dim, o_dim * 2, False, w_gate.device, w_gate.dtype)

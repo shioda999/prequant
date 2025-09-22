@@ -102,7 +102,9 @@ def apply_global_permute(model, m=0):
     perm_func = [get_perm, get_perm_v2, get_perm_v3, get_perm_v4][m]
     metric = 0
     emb = get_embed(model).weight
-    metric = emb.abs().pow(2).mean(dim=0).sqrt()
+    p = 10
+    metric = emb.abs().max(dim=0)[0]
+    metric = metric + emb.abs().pow(p).mean(dim=0).pow(1/p)
     perm = perm_func(metric)
     apply_global_permute_v2(model, perm)
 
