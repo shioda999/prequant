@@ -69,19 +69,14 @@ def get_perm(metric, k=32):
     return idx
 
 def get_perm_v2(metric, k=32):
-    idx = metric.argsort(dim=-1, descending=True)
-    n_group = idx.shape[0] // k
-    tmp_idx = torch.arange(idx.shape[0])
-    tmp_idx = tmp_idx % n_group * k + tmp_idx // n_group
-    idx = idx[tmp_idx]
+    idx = metric.argsort(dim=-1)
     return idx
 
 def get_perm_v3(metric, k=32):
     idx = metric.argsort(dim=-1, descending=True)
-    t = idx.shape[0] // 2
-    n_group = t // k
+    n_group = idx.shape[0] // k
     tmp_idx = torch.arange(idx.shape[0])
-    tmp_idx = tmp_idx % t % n_group * k + tmp_idx % t // n_group + tmp_idx // t * t
+    tmp_idx = tmp_idx % n_group * k + tmp_idx // n_group
     idx = idx[tmp_idx]
     return idx
 
