@@ -132,6 +132,24 @@ def calc_quantize_error(model):
     register(get_head(model), ["head"], norm=get_head_norm(model))
 
     return result
+
+def calc_quantize_error_v2(model, labels):
+    error = 0
+    if "embed" in labels:
+        error += q_err(get_embed(model))
+    layers = get_layers(model)
+    for i, l in enumerate(layers):
+        pre_norm, post_norm = get_pre_norm(l), get_post_norm(l)
+        if "q" in labels: error += q_err(get_q(model), norm=pre_norm)
+        if "k" in labels: error += q_err(get_k(model), norm=pre_norm)
+        if "v" in labels: error += q_err(get_v(model), norm=pre_norm)
+        if "o" in labels: error += q_err(get_o(model), t=True)
+        if "gate" in labels: error += q_err(get_gate(model), norm=post_norm)
+        if "up" in labels: error += q_err(get_up(model), norm=post_norm)
+        if "down" in labels: error += q_err(get_down(model), t=True)
+    if "head":
+        error += q_err(get_head(model), norm=get_head_norm(model))
+    return error
     
 
 @torch.no_grad()

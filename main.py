@@ -84,22 +84,15 @@ def main():
         norm_data[f"pre_{i:02}"] = get_pre_norm(l).weight
         norm_data[f"pos_{i:02}"] = get_post_norm(l).weight
 
-    result = calc_quantize_error(model)
-    apply_rotate(model)
-    after = calc_quantize_error(model)
-
-    def get_loss(r, labels):
-        return sum([r[l] for l in labels])
-
     labels = ["embed", "head"]
-    l1, l2 = get_loss(result, labels), get_loss(after, labels)
+    l1 = calc_quantize_error_v2(model, labels)
+    apply_rotate(model)
+    l2 = calc_quantize_error_v2(model, labels)
     flags = l1 >= l2
-    # flags = torch.logical_and(l1 >= l2, l1 <= l2 * 2)
-    # flags = l1 <= l2 * 2
     print(flags)
     print(l1)
     print(l2)
-    del model
+    del model, tokenizer
     model, tokenizer = get_model(args.model)
 
     apply_config(model)
