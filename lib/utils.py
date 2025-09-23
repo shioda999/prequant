@@ -89,7 +89,7 @@ class ConcatModule:
         return y
 
 @torch.no_grad()
-def quantize(w, nbits=4, group_sz=128):
+def quantize(w, nbits=4, group_sz=32):
     shape, dtype = w.shape, w.dtype
     w = w.reshape(-1, group_sz).float()
     Qp, Qn = 2 ** (nbits - 1) - 1, -2 ** (nbits - 1)
@@ -100,7 +100,7 @@ def quantize(w, nbits=4, group_sz=128):
 @torch.no_grad()
 def q_err(m, nbits=4, sz=32, norm=None, t=False):
     w = m.weight
-    w_q, s = quantize(w, nbits, 32)
+    w_q, s = quantize(w, nbits)
     delta = w_q - w
     if norm is not None:
         delta.mul_(norm.weight)
@@ -206,3 +206,4 @@ def calc_metric(m, t=False):
     w = m.weight if not t else m.weight.T
     t = w.abs().pow(2).mean(dim=0).sqrt()
     return t / t.mean()
+
