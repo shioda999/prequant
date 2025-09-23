@@ -11,10 +11,10 @@ def smooth_fn(As, Bs, p=2, a=0., b=0.5):
     for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
     for B in Bs: B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
 
-def smooth_qkv(layer):
+def smooth_qkv(layer, a, b):
     norm = get_pre_norm(layer)
     qkv = [get_q(layer), get_k(layer), get_v(layer)]
-    smooth_fn([norm], qkv)
+    smooth_fn([norm], qkv, a=a, b=b)
 
 def smooth_vo(layer, a=0.5, b=0.5):
     head_dim = get_head_dim(layer)
@@ -32,22 +32,22 @@ def smooth_vo(layer, a=0.5, b=0.5):
     v.weight.data = v.weight.div(s[:,None]).to(w_v.dtype)
     o.weight.data = w_o.mul(s).reshape(-1,ratio,w_o.shape[1]//head_dim,head_dim).transpose(1,2).reshape(tmp).to(w_o.dtype)
 
-def smooth_mlp(layer):
+def smooth_mlp(layer, a, b):
     norm = get_post_norm(layer)
     up, gate, down = get_up(layer), get_gate(layer), get_down(layer)
-    smooth_fn([up], [down])
-    smooth_fn([norm], [up, gate])
+    smooth_fn([up], [down], a=a, b=b)
+    smooth_fn([norm], [up, gate], a=a, b=b)
 
-def smooth_head(model):
+def smooth_head(model, a, b):
     norm = get_head_norm(model)
     head = get_head(model)
-    smooth_fn([norm], [head])
+    smooth_fn([norm], [head], a=a, b=b)
 
 @torch.no_grad()
-def apply_smooth(model):
+def apply_smooth(model, a=0., b=0.5):
     layers = get_layers(model)
     for l in layers:
         # smooth_vo(l)
-        smooth_qkv(l)
-        smooth_mlp(l)
-    smooth_head(model)
+        smooth_qkv(l, a, b)
+        smooth_mlp(l, a, b)
+    smooth_head(model, a, b)
