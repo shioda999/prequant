@@ -81,7 +81,7 @@ def load_tokenizer(gguf_path):
 
 if __name__ == "__main__":
     args = get_args()
-    model = Llama(args.gguf, n_gpu_layers=-1, n_ctx=4096, n_batch=512, logits_all=True)
+    model = Llama(args.gguf, n_gpu_layers=-1, n_ctx=4096, n_batch=512, logits_all=True, verbose=False)
     tokenizer = load_tokenizer(args.gguf)
     dataset = load_from_disk("./data/wikitext_test")
     testloader = tokenizer("\n\n".join(dataset['text']), return_tensors='pt')

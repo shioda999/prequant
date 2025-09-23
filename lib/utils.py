@@ -113,11 +113,10 @@ def calc_quantize_error(model):
 
     def register(m, labels, nbits=4, norm=None, t=False):
         err = q_err(m, nbits, norm=norm, t=t)
-        result["!SUM"] += err.mean()
+        result["!SUM"] += err.sum().item()
         for e in labels:
-            if e not in result: result[e] = err
-            elif result[e].shape != err.shape: result[e] = result[e].sum() + err.mean()
-            else: result[e] += err
+            if e not in result: result[e] = err.sum().item()
+            result[e] += err.sum().item()
 
     register(get_embed(model), ["embed"])
     layers = get_layers(model)
@@ -140,15 +139,15 @@ def calc_quantize_error_v2(model, labels):
     if "embed" in labels:
         error += q_err(get_embed(model))
     layers = get_layers(model)
-    for i, l in enumerate(layers):
+    for i, l in enumerate(layers[:1]):
         pre_norm, post_norm = get_pre_norm(l), get_post_norm(l)
-        if "q" in labels: error += q_err(get_q(model), norm=pre_norm)
-        if "k" in labels: error += q_err(get_k(model), norm=pre_norm)
-        if "v" in labels: error += q_err(get_v(model), norm=pre_norm)
-        if "o" in labels: error += q_err(get_o(model), t=True)
-        if "gate" in labels: error += q_err(get_gate(model), norm=post_norm)
-        if "up" in labels: error += q_err(get_up(model), norm=post_norm)
-        if "down" in labels: error += q_err(get_down(model), t=True)
+        if "q" in labels: error += q_err(get_q(l), norm=pre_norm)
+        if "k" in labels: error += q_err(get_k(l), norm=pre_norm)
+        if "v" in labels: error += q_err(get_v(l), norm=pre_norm)
+        if "o" in labels: error += q_err(get_o(l), t=True)
+        if "gate" in labels: error += q_err(get_gate(l), norm=post_norm)
+        if "up" in labels: error += q_err(get_up(l), norm=post_norm)
+        if "down" in labels: error += q_err(get_down(l), t=True)
     if "head":
         error += q_err(get_head(model), norm=get_head_norm(model))
     return error

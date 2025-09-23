@@ -20,10 +20,10 @@ def str2bool(s):
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', default='Qwen/Qwen3-0.6B')
+    # parser.add_argument('--model', default='Qwen/Qwen3-0.6B')
     # parser.add_argument('--model', default='Qwen/Qwen3-1.7B')
     # parser.add_argument('--model', default='Qwen/Qwen3-4B-Instruct-2507')
-    # parser.add_argument('--model', default='meta-llama/Llama-3.2-1B-Instruct')
+    parser.add_argument('--model', default='meta-llama/Llama-3.2-1B-Instruct')
     # parser.add_argument('--model', default='mistralai/Mistral-7B-Instruct-v0.3')
     # parser.add_argument('--model', default='microsoft/Phi-4-mini-instruct')
     # parser.add_argument('--model', default='microsoft/Phi-4-mini-instruct')
@@ -79,14 +79,15 @@ def main():
     divide(model)
     
     apply_config(model)
+    result = calc_quantize_error(model)
 
     norm_data = {}
     for i, l in enumerate(get_layers(model)):
         norm_data[f"pre_{i:02}"] = get_pre_norm(l).weight
         norm_data[f"pos_{i:02}"] = get_post_norm(l).weight
 
-    labels = ["embed"]
-    apply_global_permute(model)
+    labels = ["q", "k"]
+    # apply_global_permute(model)
     l1 = calc_quantize_error_v2(model, labels)
     apply_rotate(model)
     l2 = calc_quantize_error_v2(model, labels)
@@ -98,16 +99,18 @@ def main():
     model, tokenizer = get_model(model_name)
 
     apply_config(model)
-    apply_global_permute(model)
-    apply_rotate_vo(model)
     apply_rotate_adaptive(model, flags=flags)
+    apply_permute(model, m=0)
+    apply_rotate_vo(model)
+    apply_smooth(model)
+    after = calc_quantize_error(model)
 
     apply_quantize(model)
 
     undivide(model)
 
-    # result.update({k + "_a": v for k, v in after.items()})
-    # pprint(result)
+    result.update({k + "_a": v for k, v in after.items()})
+    pprint(result)
 
     for i, l in enumerate(get_layers(model)):
         norm_data[f"pre_{i:02}a"] = get_pre_norm(l).weight

@@ -47,7 +47,7 @@ def smooth_head(model):
 def apply_smooth(model):
     layers = get_layers(model)
     for l in layers:
-        smooth_vo(l)
+        # smooth_vo(l)
         smooth_qkv(l)
         smooth_mlp(l)
     smooth_head(model)
