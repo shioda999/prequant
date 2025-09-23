@@ -88,6 +88,7 @@ class ConcatModule:
         y = torch.concat([m(x) for m in self.modules], dim=-1)
         return y
 
+@torch.no_grad()
 def quantize(w, nbits=4, group_sz=128):
     shape, dtype = w.shape, w.dtype
     w = w.reshape(-1, group_sz).float()
@@ -96,23 +97,24 @@ def quantize(w, nbits=4, group_sz=128):
     w_q = w.div(s).round_().clamp_(Qn, Qp).mul_(s).reshape(shape).to(dtype)
     return w_q, s
 
-def q_err(m, nbits=4, group_sz=32, norm=None, t=False):
+@torch.no_grad()
+def q_err(m, nbits=4, sz=32, norm=None, t=False):
     w = m.weight
-    w_q, s = quantize(w, nbits, group_sz)
+    w_q, s = quantize(w, nbits, 32)
     delta = w_q - w
     if norm is not None:
         delta.mul_(norm.weight)
     if t is False:
-        return delta.reshape(w.shape[0],-1, group_sz).float().pow(2).mean(dim=-1).mean(dim=0)
+        return delta.reshape(w.shape[0],-1, sz).float().pow(2).mean(dim=-1).mean(dim=0)
     else:
-        return delta.reshape(group_sz, -1).float().pow(2).mean(dim=-1)
+        return delta.reshape(sz, -1).float().pow(2).mean(dim=-1)
 
 @torch.no_grad()
-def calc_quantize_error(model):
+def calc_quantize_error(model, sz=32):
     result = {"!SUM": 0}
 
     def register(m, labels, nbits=4, norm=None, t=False):
-        err = q_err(m, nbits, norm=norm, t=t)
+        err = q_err(m, nbits, norm=norm, t=t, sz=sz)
         result["!SUM"] += err.sum().item()
         for e in labels:
             if e not in result: result[e] = err.sum().item()
@@ -134,24 +136,23 @@ def calc_quantize_error(model):
     return result
 
 @torch.no_grad()
-def calc_quantize_error_v2(model, labels):
+def calc_quantize_error_v2(model, labels, sz=32):
     error = 0
     if "embed" in labels:
-        error += q_err(get_embed(model))
+        error += q_err(get_embed(model), sz=sz)
     layers = get_layers(model)
-    for i, l in enumerate(layers[:1]):
+    for i, l in enumerate(layers):
         pre_norm, post_norm = get_pre_norm(l), get_post_norm(l)
-        if "q" in labels: error += q_err(get_q(l), norm=pre_norm)
-        if "k" in labels: error += q_err(get_k(l), norm=pre_norm)
-        if "v" in labels: error += q_err(get_v(l), norm=pre_norm)
-        if "o" in labels: error += q_err(get_o(l), t=True)
-        if "gate" in labels: error += q_err(get_gate(l), norm=post_norm)
-        if "up" in labels: error += q_err(get_up(l), norm=post_norm)
-        if "down" in labels: error += q_err(get_down(l), t=True)
-    if "head":
-        error += q_err(get_head(model), norm=get_head_norm(model))
+        if "q" in labels: error += q_err(get_q(l), norm=pre_norm, sz=sz)
+        if "k" in labels: error += q_err(get_k(l), norm=pre_norm, sz=sz)
+        if "v" in labels: error += q_err(get_v(l), norm=pre_norm, sz=sz)
+        if "o" in labels: error += q_err(get_o(l), t=True, sz=sz)
+        if "gate" in labels: error += q_err(get_gate(l), norm=post_norm, sz=sz)
+        if "up" in labels: error += q_err(get_up(l), norm=post_norm, sz=sz)
+        if "down" in labels: error += q_err(get_down(l), t=True, sz=sz)
+    if "head" in labels:
+        error += q_err(get_head(model), norm=get_head_norm(model), sz=sz)
     return error
-    
 
 @torch.no_grad()
 def fuse_norm(norm, fcs):

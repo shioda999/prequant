@@ -7,7 +7,7 @@ from safetensors.torch import save_model, load_model
 from lib.eval import eval_ppl
 from lib.convert import convert
 from lib.smooth import apply_smooth
-from lib.rotate import apply_rotate, apply_rotate_vo, apply_rotate_adaptive
+from lib.rotate import apply_rotate, apply_rotate_vo, apply_rotate_adaptive, apply_rotate_auto
 from lib.permute import apply_permute, apply_global_permute, apply_global_permute_v2
 from lib.get_module import apply_config
 from lib.utils import *
@@ -81,40 +81,33 @@ def main():
     apply_config(model)
     result = calc_quantize_error(model)
 
-    norm_data = {}
-    for i, l in enumerate(get_layers(model)):
-        norm_data[f"pre_{i:02}"] = get_pre_norm(l).weight
-        norm_data[f"pos_{i:02}"] = get_post_norm(l).weight
+    apply_rotate_auto(model)
 
-    labels = ["q", "k"]
-    # apply_global_permute(model)
-    l1 = calc_quantize_error_v2(model, labels)
-    apply_rotate(model)
-    l2 = calc_quantize_error_v2(model, labels)
-    flags = l1 >= l2
-    print(flags)
-    print(l1)
-    print(l2)
-    del model, tokenizer
-    model, tokenizer = get_model(model_name)
+    # sz = 32
+    # labels = ["embed"]
+    # l1 = calc_quantize_error_v2(model, labels, sz=sz)
+    # apply_rotate(model, sz=sz)
+    # l2 = calc_quantize_error_v2(model, labels, sz=sz)
+    # flags = l1 >= l2
+    # print(flags)
+    # print(l1)
+    # print(l2)
+    # del model, tokenizer
+    # model, tokenizer = get_model(model_name)
 
-    apply_config(model)
-    apply_rotate_adaptive(model, flags=flags)
-    apply_permute(model, m=0)
-    apply_rotate_vo(model)
-    apply_smooth(model)
+    # apply_config(model)
+    # apply_rotate_adaptive(model, sz=sz, flags=flags)
+    # # apply_permute(model, m=0)
+    # # apply_rotate_vo(model)
+    # # apply_smooth(model)
+
     after = calc_quantize_error(model)
-
     apply_quantize(model)
-
     undivide(model)
 
     result.update({k + "_a": v for k, v in after.items()})
     pprint(result)
 
-    for i, l in enumerate(get_layers(model)):
-        norm_data[f"pre_{i:02}a"] = get_pre_norm(l).weight
-        norm_data[f"pos_{i:02}a"] = get_post_norm(l).weight
     # pprint(norm_data)
 
     model.to(device)

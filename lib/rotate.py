@@ -289,3 +289,59 @@ def apply_rotate_debug(model, sz=4):
         torch.cuda.empty_cache()
         l.cpu()
     # rotate_head(model, H.cpu())
+
+@torch.no_grad()
+def apply_rotate_auto(model):
+    device = next(model.parameters()).device
+    model.cpu()
+    model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
+    dim = get_dim(model)
+    emb = get_embed(model)
+    w_emb = emb.weight.clone()
+    prev_loss = q_err(emb, sz=1)
+    flags = [prev_loss > 0]
+    t = [1 for _ in range(dim)]
+    prev_sz = 1
+    for sz in [32]:
+        emb.weight.data = w_emb.clone()
+        H = generate_hadamard_matrix(sz, device)
+        rotate_embedding(model, H)
+        loss = q_err(emb, sz=sz)
+        prev_loss = prev_loss.reshape(-1, sz // prev_sz).mean(dim=-1)
+        prev_flags = flags[-1].reshape(-1, sz // prev_sz).transpose(-1,-2)
+        prev_flag = prev_flags[0]
+        for f in prev_flags:
+            prev_flag = torch.logical_and(prev_flag, f)
+        flag = torch.logical_and(loss < prev_loss, prev_flag)
+        print(prev_loss)
+        print(loss)
+        print(flag)
+        # input()
+        flags.append(flag)
+        for i, f in enumerate(flag):
+            if f: t[i * sz] = sz
+        prev_sz = sz
+
+    H_list, H_sz_list = [], []
+    i = 0
+    while i < dim:
+        H_list.append(generate_hadamard_matrix(t[i], device))
+        H_sz_list.append(t[i])
+        i += t[i]
+    print(H_sz_list)
+    print(sum(H_sz_list))
+
+    H = torch.block_diag(*H_list)
+    emb.weight.data = w_emb.clone()
+    rotate_embedding(model, H.cpu())
+    layers = get_layers(model)
+    H = H.to(device)
+    for l in layers:
+        l.to(device)
+        rotate_o(l, H)
+        # rotate_vo_duquant(l)
+        rotate_qkv(l, H)
+        rotate_mlp(l, H)
+        torch.cuda.empty_cache()
+        l.cpu()
+    rotate_head(model, H.cpu())
