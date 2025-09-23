@@ -858,7 +858,7 @@ def apply_permute_annealing_swap_only_fast(model, n_trials=1000):
     
     # 温度設定（局所解に陥りにくい特性）
     initial_temp = 0.01
-    final_temp = 0.0
+    final_temp = 0.0001
     alpha = 0.999  # ゆっくりと0に近づく
     current_temp = initial_temp
     
