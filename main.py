@@ -11,7 +11,7 @@ from lib.rotate import apply_rotate, apply_rotate_vo, apply_rotate_adaptive, app
 from lib.permute import apply_permute, apply_global_permute, apply_global_permute_v2
 from lib.get_module import apply_config
 from lib.utils import *
-from lib.permute_annealing import apply_permute_annealing, apply_permute_annealing_swap_only
+from lib.permute_annealing import *
 from pprint import pprint
 
 device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
@@ -80,7 +80,7 @@ def main():
     divide(model)
     
     apply_config(model)
-    apply_permute_annealing_swap_only(model)
+    apply_permute_annealing_swap_only_fast(model)
     exit()
     result = calc_quantize_error(model)
 
