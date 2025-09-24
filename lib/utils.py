@@ -232,6 +232,7 @@ class LargeMatrixDataset(torch.utils.data.Dataset):
     """
     def __init__(self, matrix, indices=None, transform=None):
         self.matrix = matrix.float()
+        self.matrix.requires_grad = False
             
         if indices is None:
             self.indices = torch.arange(self.matrix.size(0))
