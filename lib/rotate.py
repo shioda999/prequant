@@ -184,7 +184,7 @@ def apply_rotate_vo(model, device=None):
 def apply_rotate_optim(model, lr=0.00001, num_iterations=100, device=None):
     from .cayley import SGDG
     if device is None: device = get_device()
-    w = get_embed(model).weight.clone().float()
+    w = get_embed(model).weight.clone().float().to(device)
     model.cpu()
     dim = get_dim(model)
     H = torch.nn.Parameter(torch.eye(dim, device=device, dtype=torch.float, requires_grad=True))
