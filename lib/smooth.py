@@ -11,9 +11,12 @@ def _smooth_fn(As, Bs, p=2, a=0., b=0.5):
     for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
     for B in Bs: B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
 
-def smooth_fn(As, Bs, n_iterations=100, lr=0.005, a=None, b=None):
-    s = torch.nn.Parameter(torch.ones(Bs[0].weight.shape[-1], device=Bs[0].weight.device))
+def smooth_fn(As, Bs, n_iterations=100, lr=0.005, a=None, b=None, device=None):
+    if device is None: device = get_device()
+    s = torch.nn.Parameter(torch.ones(Bs[0].weight.shape[-1], device=device))
     optimizer = torch.optim.Adam([s], lr=lr)
+    for A in As: A.to(device)
+    for B in Bs: B.to(device)
     for i in range(n_iterations):
         optimizer.zero_grad()
         loss = 0
@@ -27,6 +30,8 @@ def smooth_fn(As, Bs, n_iterations=100, lr=0.005, a=None, b=None):
     s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
     for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
     for B in Bs: B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
+    for A in As: A.cpu()
+    for B in Bs: B.cpu()
 
 def smooth_qkv(layer, a, b):
     norm = get_pre_norm(layer)
