@@ -141,21 +141,12 @@ def _apply_rotate(model, sz=32):
     rotate_head(model, H.cpu())
 
 @torch.no_grad()
-def apply_rotate(model, sz=32, protect=0, protect_last=0):
+def apply_rotate(model, H):
     device = next(model.parameters()).device
     model.cpu()
     dim = get_dim(model)
-    H = generate_hadamard_matrix(sz, torch.device("cpu"))
-    eye = torch.eye(sz, device=H.device, dtype=H.dtype)
     model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
 
-    n = dim // sz
-    H_list = []
-    H_list += [eye for _ in range(protect)]
-    H_list += [H for _ in range(n - protect - protect_last)]
-    H_list += [eye for _ in range(protect_last)]
-
-    H = torch.block_diag(*H_list)
     rotate_embedding(model, H)
     layers = get_layers(model)
     H = H.to(device)
@@ -345,3 +336,47 @@ def apply_rotate_auto(model):
         torch.cuda.empty_cache()
         l.cpu()
     rotate_head(model, H.cpu())
+
+def apply_rotate_optim(model, lr=0.00001, num_iterations=100):
+    from .cayley import SGDG
+    device = next(model.parameters()).device
+    w = get_embed(model).weight.clone().float()
+    model.cpu()
+    dim = get_dim(model)
+    H = torch.nn.Parameter(torch.eye(dim, device=device, dtype=torch.float, requires_grad=True))
+
+    def round_ste(w):
+        return w.round() + w - w.detach()
+    
+    def loss_fn(w, group_sz=32, nbits=4):
+        w = w.reshape(-1, group_sz)
+        Qp, Qn = 2 ** (nbits - 1) - 1, -2 ** (nbits - 1)
+        s = torch.maximum(w.max(dim=1, keepdim=True)[0] / Qp, w.min(dim=1, keepdim=True)[0] / Qn)
+        w_q = round_ste(w.div(s)).clamp(Qn, Qp).mul(s)
+        return (w_q - w).pow(2).sum()
+    
+    # Cayley optimizer
+    optimizer = SGDG([H], lr=lr)
+    
+    loss_history = []
+    
+    for i in range(num_iterations):
+        optimizer.zero_grad()
+        
+        # Compute loss
+        loss = loss_fn(w @ H)
+        
+        # Backward pass
+        loss.backward()
+        
+        # Optimization step with Cayley transform
+        optimizer.step()
+        
+        loss_history.append(loss.item())
+        
+        if True:#(i + 1) % 100 == 0:
+            print(f"Iteration {i+1}/{num_iterations}, Loss: {loss.item():.6f}")
+            
+    model.to(device)
+    apply_rotate(model, H)
+

@@ -7,8 +7,8 @@ from safetensors.torch import save_model, load_model
 from lib.eval import eval_ppl
 from lib.convert import convert
 from lib.smooth import apply_smooth
-from lib.rotate import apply_rotate, apply_rotate_vo, apply_rotate_adaptive, apply_rotate_auto
-from lib.permute import apply_permute, apply_global_permute, apply_global_permute_v2
+from lib.rotate import *
+from lib.permute import *
 from lib.get_module import apply_config
 from lib.utils import *
 from lib.permute_annealing import *
@@ -70,7 +70,6 @@ def eval(args, model, tokenizer):
         model.seqlen = 2048
         eval_ppl(model, tokenizer, device, datasets=["wikitext2"])
 
-@torch.no_grad()
 def main():
     args = get_args()
     model_name = args.model
@@ -80,37 +79,38 @@ def main():
     divide(model)
     
     apply_config(model)
-    apply_permute_annealing_swap_only_fast(model)
-    exit()
-    result = calc_quantize_error(model)
+    apply_rotate_optim(model)
+    # apply_permute_annealing_swap_only_fast(model)
+    # exit()
+    # result = calc_quantize_error(model)
 
-    sz = 32
-    permute = False
-    labels = ["embed", "head"]
-    if permute: apply_global_permute(model)
-    l1 = calc_quantize_error_v2(model, labels, sz=sz)
-    apply_rotate(model, sz=sz)
-    l2 = calc_quantize_error_v2(model, labels, sz=sz)
-    flags = l1 >= l2
-    print(flags)
-    print(l1)
-    print(l2)
-    del model, tokenizer
-    model, tokenizer = get_model(model_name)
+    # sz = 32
+    # permute = False
+    # labels = ["embed", "head"]
+    # if permute: apply_global_permute(model)
+    # l1 = calc_quantize_error_v2(model, labels, sz=sz)
+    # apply_rotate(model, sz=sz)
+    # l2 = calc_quantize_error_v2(model, labels, sz=sz)
+    # flags = l1 >= l2
+    # print(flags)
+    # print(l1)
+    # print(l2)
+    # del model, tokenizer
+    # model, tokenizer = get_model(model_name)
 
-    apply_config(model)
-    if permute: apply_global_permute(model)
-    apply_rotate_adaptive(model, sz=sz, flags=flags)
-    # apply_permute(model, m=0)
-    apply_rotate_vo(model)
-    apply_smooth(model)
+    # apply_config(model)
+    # if permute: apply_global_permute(model)
+    # apply_rotate_adaptive(model, sz=sz, flags=flags)
+    # # apply_permute(model, m=0)
+    # apply_rotate_vo(model)
+    # apply_smooth(model)
 
     after = calc_quantize_error(model)
     apply_quantize(model)
     undivide(model)
 
-    result.update({k + "_a": v for k, v in after.items()})
-    pprint(result)
+    # result.update({k + "_a": v for k, v in after.items()})
+    # pprint(result)
 
     # pprint(norm_data)
 
