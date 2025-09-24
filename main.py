@@ -79,10 +79,10 @@ def main():
     divide(model)
     
     apply_config(model)
-    apply_rotate_optim(model)
+    result = calc_quantize_error(model)
+    apply_smooth(model)
+    # apply_rotate_optim(model)
     # apply_permute_annealing_swap_only_fast(model)
-    # exit()
-    # result = calc_quantize_error(model)
 
     # sz = 32
     # permute = False
@@ -109,8 +109,8 @@ def main():
     apply_quantize(model)
     undivide(model)
 
-    # result.update({k + "_a": v for k, v in after.items()})
-    # pprint(result)
+    result.update({k + "_a": v for k, v in after.items()})
+    pprint(result)
 
     # pprint(norm_data)
 

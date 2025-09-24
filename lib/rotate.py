@@ -181,26 +181,39 @@ def apply_rotate_vo(model, device=None):
         l.cpu()
     model.to(device)
 
-def apply_rotate_optim(model, lr=0.00001, num_iterations=100, device=None):
+def block_diag_hadamard_adaptive(model, sz=32):
+    emb = get_embed(model)
+    tmp = emb.weight.clone()
+    before = q_err(emb)
+
+    H = generate_hadamard_matrix(sz, torch.device("cpu"))
+    rotate_embedding(model, H)
+    after = q_err(emb)
+    emb.weight.data = tmp
+    flags = before > after
+    eye = torch.eye(sz, device=H.device, dtype=H.dtype)
+    H_list = [H if f else eye for f in flags]
+    return H_list
+
+def apply_rotate_optim(model, lr=0.01, num_iterations=10, device=None):
     from .cayley import SGDG
     if device is None: device = get_device()
     w = get_embed(model).weight.clone().float().to(device)
     model.cpu()
     dim = get_dim(model)
-    H = torch.nn.Parameter(torch.eye(dim, device=device, dtype=torch.float, requires_grad=True))
+    sz = 32
+    # H = torch.eye(dim, device=device, dtype=torch.float, requires_grad=True)
+    # H = torch.stack([generate_hadamard_matrix(sz, torch.device("cpu")) for _ in range(dim//sz)])
+    Hs = block_diag_hadamard_adaptive(model, sz)
+    Hs = [torch.nn.Parameter(H) for H in Hs]
+    # H = torch.nn.Parameter(H)
 
-    def round_ste(w):
-        return w.round() + w - w.detach()
-    
-    def loss_fn(w, group_sz=32, nbits=4):
-        w = w.reshape(-1, group_sz)
-        Qp, Qn = 2 ** (nbits - 1) - 1, -2 ** (nbits - 1)
-        s = torch.maximum(w.max(dim=1, keepdim=True)[0] / Qp, w.min(dim=1, keepdim=True)[0] / Qn)
-        w_q = round_ste(w.div(s)).clamp(Qn, Qp).mul(s)
-        return (w_q - w).pow(2).sum()
+    loss_fn = quantization_loss
+    # loss_fn = QuantizationLoss.apply
     
     # Cayley optimizer
-    optimizer = SGDG([H], lr=lr)
+    # optimizer = SGDG([H], lr=lr)
+    optimizer = SGDG([Hs], lr=lr)
     
     loss_history = []
     
@@ -208,7 +221,8 @@ def apply_rotate_optim(model, lr=0.00001, num_iterations=100, device=None):
         optimizer.zero_grad()
         
         # Compute loss
-        loss = loss_fn(w @ H)
+        # loss = loss_fn(w @ H)
+        loss = loss_fn(w @ torch.block_diag(*Hs))
         
         # Backward pass
         loss.backward()
@@ -222,5 +236,6 @@ def apply_rotate_optim(model, lr=0.00001, num_iterations=100, device=None):
             print(f"Iteration {i+1}/{num_iterations}, Loss: {loss.item():.6f}")
             
     model.to(device)
-    apply_rotate(model, H)
+    # apply_rotate(model, H)
+    apply_rotate(model, torch.block_diag(*Hs))
 

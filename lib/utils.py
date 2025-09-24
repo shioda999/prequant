@@ -1,4 +1,7 @@
+
 import torch
+import torch.nn.functional as F
+from torch.autograd import Function
 from .get_module import *
 
 @torch.no_grad()
@@ -209,3 +212,16 @@ def calc_metric(m, t=False):
 
 def get_device():
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+def round_ste(w):
+    return w.round() + w - w.detach()
+
+def quantization_loss(w, group_sz=32, nbits=4, norm=None):
+    shape = w.shape
+    w = w.reshape(-1, group_sz)
+    Qp, Qn = 2 ** (nbits - 1) - 1, -2 ** (nbits - 1)
+    s = torch.maximum(w.max(dim=1, keepdim=True)[0] / Qp, w.min(dim=1, keepdim=True)[0] / Qn)
+    w_q = round_ste(w.div(s)).clamp(Qn, Qp).mul(s)
+    delta = w_q - w
+    if norm is not None: delta = delta.reshape(shape).mul(norm.weight)
+    return delta.pow(2).sum()

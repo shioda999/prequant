@@ -3,10 +3,29 @@ from .get_module import *
 from .utils import *
 
 @torch.no_grad()
-def smooth_fn(As, Bs, p=2, a=0., b=0.5):
+def _smooth_fn(As, Bs, p=2, a=0., b=0.5):
     sa = torch.concat([normalize(A.weight)[..., None] for A in As]).reshape(As[0].weight.shape[0], -1).abs().pow(p).mean(dim=1).pow(1/p)
     sb = torch.concat([normalize(B.weight) for B in Bs]).reshape(-1, Bs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p)
     s = sa.pow(-a) * sb.pow(b)
+    s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
+    for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
+    for B in Bs: B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
+
+def smooth_fn(As, Bs, n_iterations=100, lr=0.01, a=None, b=None):
+    s = torch.nn.Parameter(torch.ones(Bs[0].weight.shape[-1], device=Bs[0].device))
+    optimizer = torch.optim.Adam([s], lr=lr)
+    for i in range(n_iterations):
+        optimizer.zero_grad()
+        loss = 0
+        if len(As[0].weight.shape) > 1:
+            # for A in As: loss += quantization_loss(A.weight * s[:,None])
+            for B in Bs: loss += quantization_loss(B.weight / s)
+        else:
+            for B in Bs: loss += quantization_loss(B.weight / s, norm=As[0])
+        loss.backward()
+        optimizer.step()
+        if (i + 1) % 10 == 0:
+            print(f"Iteration {i+1}/{n_iterations}, Loss: {loss.item():.6f}")
     s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
     for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
     for B in Bs: B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
@@ -16,6 +35,7 @@ def smooth_qkv(layer, a, b):
     qkv = [get_q(layer), get_k(layer), get_v(layer)]
     smooth_fn([norm], qkv, a=a, b=b)
 
+@torch.no_grad()
 def smooth_vo(layer, a=0.5, b=0.5):
     head_dim = get_head_dim(layer)
     v, o = get_v(layer), get_o(layer)
@@ -43,11 +63,14 @@ def smooth_head(model, a, b):
     head = get_head(model)
     smooth_fn([norm], [head], a=a, b=b)
 
-@torch.no_grad()
-def apply_smooth(model, a=0., b=0.5):
+def apply_smooth(model, a=0., b=0.5, device=None):
+    device = get_device()
+    model.cpu()
     layers = get_layers(model)
     for l in layers:
+        l.to(device)
         # smooth_vo(l)
         smooth_qkv(l, a, b)
         smooth_mlp(l, a, b)
+        l.cpu()
     smooth_head(model, a, b)
