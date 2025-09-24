@@ -225,3 +225,35 @@ def quantization_loss(w, group_sz=32, nbits=4, scale=None):
     delta = w_q - w
     if scale is not None: delta = delta.reshape(shape).mul(scale)
     return delta.pow(2).sum()
+
+class LargeMatrixDataset(torch.utils.data.Dataset):
+    """
+    巨大な行列からミニバッチでベクトルを取得するデータセット
+    """
+    def __init__(self, matrix, indices=None, transform=None):
+        self.matrix = matrix.float()
+            
+        if indices is None:
+            self.indices = torch.arange(self.matrix.size(0))
+        else:
+            if isinstance(indices, list):
+                self.indices = torch.tensor(indices)
+            else:
+                self.indices = indices
+                
+        self.transform = transform
+        
+    def __len__(self):
+        return len(self.indices)
+    
+    def __getitem__(self, idx):
+        """
+        指定されたインデックスのベクトルを取得
+        """
+        matrix_idx = self.indices[idx % len(self.indices)]
+        vector = self.matrix[matrix_idx]
+        
+        if self.transform:
+            vector = self.transform(vector)
+            
+        return vector, matrix_idx

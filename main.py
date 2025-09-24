@@ -80,8 +80,8 @@ def main():
     
     apply_config(model)
     result = calc_quantize_error(model)
-    apply_smooth(model)
-    # apply_rotate_optim(model)
+    # apply_smooth(model)
+    apply_rotate_optim(model)
     # apply_permute_annealing_swap_only_fast(model)
 
     # sz = 32

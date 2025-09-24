@@ -195,47 +195,82 @@ def block_diag_hadamard_adaptive(model, sz=32):
     H_list = [H if f else eye for f in flags]
     return H_list
 
-def apply_rotate_optim(model, lr=0.01, num_iterations=10, device=None):
+def get_vector_dataset(model):
+    D = []
+    def vec_append(m, t=False):
+        D.append(m.weight.T.clone() if t else m.weight.clone())
+    vec_append(get_embed(model))
+    for l in get_layers(model):
+        norm = get_pre_norm(l)
+        qkv = [get_q(l), get_k(l), get_v(l)]
+        fuse_norm(norm, qkv)
+        for e in qkv: vec_append(e)
+        defuse_norm(norm, qkv)
+        # vec_append(get_o(l), t=True)
+        norm = get_post_norm(l)
+        gate_up, down = [get_gate(l), get_up(l)], get_down(l)
+        fuse_norm(norm, gate_up)
+        for e in gate_up: vec_append(e)
+        defuse_norm(norm, gate_up)
+        # vec_append(down, t=True)
+    norm, head = get_head_norm(model), get_head(model)
+    fuse_norm(norm, [head])
+    vec_append(head)
+    defuse_norm(norm, [head])
+    return LargeMatrixDataset(torch.concat(D))
+
+def apply_rotate_optim(model, lr=0.01, num_iterations=1, batch_size=512, device=None):
     from .cayley import SGDG
     if device is None: device = get_device()
-    w = get_embed(model).weight.clone().float().to(device)
+    # w = get_embed(model).weight.clone().float().to(device)
+    dataset = get_vector_dataset(model)
+    
+    import platform
+    num_workers = 0 if platform.system().lower() == 'windows' else 2
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
+                                              shuffle=True, num_workers=num_workers)
     model.cpu()
     dim = get_dim(model)
     sz = 32
-    # H = torch.eye(dim, device=device, dtype=torch.float, requires_grad=True)
+    # H = torch.eye(dim, device=device, dtype=torch.float)
+    # H = torch.nn.Parameter(H)
     # H = torch.stack([generate_hadamard_matrix(sz, torch.device("cpu")) for _ in range(dim//sz)])
     Hs = block_diag_hadamard_adaptive(model, sz)
     Hs = [torch.nn.Parameter(H) for H in Hs]
-    # H = torch.nn.Parameter(H)
 
     loss_fn = quantization_loss
     # loss_fn = QuantizationLoss.apply
     
     # Cayley optimizer
-    # optimizer = SGDG([H], lr=lr)
-    optimizer = SGDG([Hs], lr=lr)
+    # optimizer = SGDG([H], lr=lr, stiefel=True)
+    optimizer = SGDG(Hs, lr=lr, stiefel=True)
     
     loss_history = []
     
     for i in range(num_iterations):
-        optimizer.zero_grad()
-        
-        # Compute loss
-        # loss = loss_fn(w @ H)
-        loss = loss_fn(w @ torch.block_diag(*Hs))
-        
-        # Backward pass
-        loss.backward()
-        
-        # Optimization step with Cayley transform
-        optimizer.step()
-        
-        loss_history.append(loss.item())
-        
-        if True:#(i + 1) % 100 == 0:
-            print(f"Iteration {i+1}/{num_iterations}, Loss: {loss.item():.6f}")
+        for j, (vec, _) in enumerate(dataloader):
+            optimizer.zero_grad()
+            
+            # Compute loss
+            # loss = loss_fn(w @ H)
+            vec = vec.detach().to(device)
+            H = torch.block_diag(*Hs)
+            loss = loss_fn(vec @ H) / vec.shape[0]
+            
+            # Backward pass
+            loss.backward()
+            
+            # Optimization step with Cayley transform
+            optimizer.step()
+            
+            loss_history.append(loss.item())
+            
+            if (j + 1) % 100 == 0:
+                print(f"Iteration {i+1}/{num_iterations}, Loss: {loss.item():.6f}")
             
     model.to(device)
-    # apply_rotate(model, H)
-    apply_rotate(model, torch.block_diag(*Hs))
+    # print(Hs)
+    H = torch.block_diag(*Hs)
+    print(H @ H.T)
+    apply_rotate(model, H)
 
