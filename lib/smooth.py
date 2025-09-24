@@ -17,11 +17,9 @@ def smooth_fn(As, Bs, n_iterations=100, lr=0.01, a=None, b=None):
     for i in range(n_iterations):
         optimizer.zero_grad()
         loss = 0
-        if len(As[0].weight.shape) > 1:
-            # for A in As: loss += quantization_loss(A.weight * s[:,None])
-            for B in Bs: loss += quantization_loss(B.weight / s)
-        else:
-            for B in Bs: loss += quantization_loss(B.weight / s, norm=As[0])
+        # if len(As[0].weight.shape) > 1:
+        #     for A in As: loss += quantization_loss(A.weight * s[:,None], scale=s[:,None])
+        for B in Bs: loss += quantization_loss(B.weight / s, scale=1/s)
         loss.backward()
         optimizer.step()
         if (i + 1) % 10 == 0:
