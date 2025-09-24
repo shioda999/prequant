@@ -147,7 +147,7 @@ def apply_rotate(model, H):
     dim = get_dim(model)
     model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
 
-    rotate_embedding(model, H)
+    rotate_embedding(model, H.cpu())
     layers = get_layers(model)
     H = H.to(device)
     for l in layers:
@@ -161,34 +161,17 @@ def apply_rotate(model, H):
     rotate_head(model, H.cpu())
 
 @torch.no_grad()
-def apply_rotate_adaptive(model, sz=32, flags=None):
-    device = next(model.parameters()).device
-    model.cpu()
-    dim = get_dim(model)
+def apply_rotate_adaptive(model, sz=32, flags=None, device=None):
+    if device is None: device = get_device()
     H = generate_hadamard_matrix(sz, torch.device("cpu"))
     eye = torch.eye(sz, device=H.device, dtype=H.dtype)
-    model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
-
-    n = dim // sz
     H_list = [H if f else eye for f in flags]
-
     H = torch.block_diag(*H_list)
-    rotate_embedding(model, H)
-    layers = get_layers(model)
-    H = H.to(device)
-    for l in layers:
-        l.to(device)
-        rotate_o(l, H)
-        # rotate_vo_duquant(l)
-        rotate_mlp(l, H)
-        rotate_qkv(l, H)
-        torch.cuda.empty_cache()
-        l.cpu()
-    rotate_head(model, H.cpu())
+    apply_rotate(model, H)
 
 @torch.no_grad()
-def apply_rotate_vo(model):
-    device = next(model.parameters()).device
+def apply_rotate_vo(model, device=None):
+    if device is None: device = get_device()
     model.cpu()
     layers = get_layers(model)
     for l in layers:
@@ -198,148 +181,9 @@ def apply_rotate_vo(model):
         l.cpu()
     model.to(device)
 
-@torch.no_grad()
-def apply_rotate_test(model, sz=32):
-    device = next(model.parameters()).device
-    model.cpu()
-    dim = get_dim(model)
-    H = generate_hadamard_matrix(sz, torch.device("cpu"))
-    eye = torch.eye(sz, device=H.device, dtype=H.dtype)
-    model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
-
-    n = dim // sz
-    layers = get_layers(model)
-    metric = 0
-    for l in layers:
-        norm, fc = get_post_norm(l), get_up(l)
-        fuse_norm(norm, [fc])
-        t = calc_metric(fc)
-        metric += t.reshape(-1, 32).std(dim=-1)
-        defuse_norm(norm, [fc])
-    median = metric.median()
-    mad = (metric - median).abs().median()
-    z = ((metric - median) / (1.4826 * mad)).tolist()
-    flags = [v < 3.5 for v in z]
-    # flags = [v < 3.5 for v in z]
-    print(z)
-    print(flags)
-    # flags = [1 for _ in range(n)]
-    H_list = [H if f else eye for f in flags]
-    H = torch.block_diag(*H_list)
-    print(H)
-    rotate_embedding(model, H)
-    H = H.to(device)
-    for l in layers:
-        l.to(device)
-        rotate_o(l, H)
-        rotate_vo_duquant(l)
-        rotate_qkv(l, H)
-        rotate_mlp(l, H)
-        torch.cuda.empty_cache()
-        l.cpu()
-    rotate_head(model, H.cpu())
-
-@torch.no_grad()
-def apply_rotate_debug(model, sz=4):
-    dim = get_dim(model)
-    head_dim = get_head_dim(model)
-    device = next(model.parameters()).device
-    model.cpu()
-    H = generate_hadamard_matrix(sz, torch.device("cpu"))
-    model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
-
-    # rotate_embedding(model, H)
-    layers = get_layers(model)
-    H = H.to(device)
-    for l in layers:
-        l.to(device)
-        # rotate_o(l, H)
-        # # rotate_vo(l, H)
-        # # rotate_vo_svd(l)
-        # rotate_vo_duquant(l)
-        # rotate_mlp(l, H)
-
-        norm = get_post_norm(l)
-        up, gate, down = get_up(l), get_gate(l),  get_down(l)
-        fuse_norm(norm, [up, gate])
-        rotate(up, H)
-        rotate(gate, H)
-        mean_norm(norm, H)
-        defuse_norm(norm, [up, gate])
-        rotate_r(down, H)
-        add_rotate_post(norm, H)
-        add_rotate_post(down, H)
-
-        # add_rotate_post(get_pre_norm(l), H)
-        # add_rotate_pre(get_q(l), H)
-        # add_rotate_pre(get_k(l), H)
-        # add_rotate_pre(get_v(l), H)
-        # rotate_qkv(l, H)
-        # rotate_o(l, H)
-        # add_rotate_post(get_o(l), H)
-        torch.cuda.empty_cache()
-        l.cpu()
-    # rotate_head(model, H.cpu())
-
-@torch.no_grad()
-def apply_rotate_auto(model):
-    device = next(model.parameters()).device
-    model.cpu()
-    model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
-    dim = get_dim(model)
-    emb = get_embed(model)
-    w_emb = emb.weight.clone()
-    prev_loss = q_err(emb, sz=1)
-    flags = [prev_loss > 0]
-    t = [1 for _ in range(dim)]
-    prev_sz = 1
-    for sz in [32]:
-        emb.weight.data = w_emb.clone()
-        H = generate_hadamard_matrix(sz, device)
-        rotate_embedding(model, H)
-        loss = q_err(emb, sz=sz)
-        prev_loss = prev_loss.reshape(-1, sz // prev_sz).mean(dim=-1)
-        prev_flags = flags[-1].reshape(-1, sz // prev_sz).transpose(-1,-2)
-        prev_flag = prev_flags[0]
-        for f in prev_flags:
-            prev_flag = torch.logical_and(prev_flag, f)
-        flag = torch.logical_and(loss < prev_loss, prev_flag)
-        print(prev_loss)
-        print(loss)
-        print(flag)
-        # input()
-        flags.append(flag)
-        for i, f in enumerate(flag):
-            if f: t[i * sz] = sz
-        prev_sz = sz
-
-    H_list, H_sz_list = [], []
-    i = 0
-    while i < dim:
-        H_list.append(generate_hadamard_matrix(t[i], device))
-        H_sz_list.append(t[i])
-        i += t[i]
-    print(H_sz_list)
-    print(sum(H_sz_list))
-
-    H = torch.block_diag(*H_list)
-    emb.weight.data = w_emb.clone()
-    rotate_embedding(model, H.cpu())
-    layers = get_layers(model)
-    H = H.to(device)
-    for l in layers:
-        l.to(device)
-        rotate_o(l, H)
-        # rotate_vo_duquant(l)
-        rotate_qkv(l, H)
-        rotate_mlp(l, H)
-        torch.cuda.empty_cache()
-        l.cpu()
-    rotate_head(model, H.cpu())
-
-def apply_rotate_optim(model, lr=0.00001, num_iterations=100):
+def apply_rotate_optim(model, lr=0.00001, num_iterations=100, device=None):
     from .cayley import SGDG
-    device = next(model.parameters()).device
+    if device is None: device = get_device()
     w = get_embed(model).weight.clone().float()
     model.cpu()
     dim = get_dim(model)

@@ -207,3 +207,5 @@ def calc_metric(m, t=False):
     t = w.abs().pow(2).mean(dim=0).sqrt()
     return t / t.mean()
 
+def get_device():
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
