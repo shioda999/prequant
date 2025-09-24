@@ -12,7 +12,7 @@ def _smooth_fn(As, Bs, p=2, a=0., b=0.5):
     for B in Bs: B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
 
 def smooth_fn(As, Bs, n_iterations=100, lr=0.01, a=None, b=None):
-    s = torch.nn.Parameter(torch.ones(Bs[0].weight.shape[-1], device=Bs[0].device))
+    s = torch.nn.Parameter(torch.ones(Bs[0].weight.shape[-1], device=Bs[0].weight.device))
     optimizer = torch.optim.Adam([s], lr=lr)
     for i in range(n_iterations):
         optimizer.zero_grad()
