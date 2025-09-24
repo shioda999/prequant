@@ -11,15 +11,15 @@ def _smooth_fn(As, Bs, p=2, a=0., b=0.5):
     for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
     for B in Bs: B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
 
-def smooth_fn(As, Bs, n_iterations=100, lr=0.01, a=None, b=None):
+def smooth_fn(As, Bs, n_iterations=100, lr=0.005, a=None, b=None):
     s = torch.nn.Parameter(torch.ones(Bs[0].weight.shape[-1], device=Bs[0].weight.device))
     optimizer = torch.optim.Adam([s], lr=lr)
     for i in range(n_iterations):
         optimizer.zero_grad()
         loss = 0
-        # if len(As[0].weight.shape) > 1:
-        #     for A in As: loss += quantization_loss(A.weight * s[:,None], scale=s[:,None])
-        for B in Bs: loss += quantization_loss(B.weight / s, scale=1/s)
+        if len(As[0].weight.shape) > 1:
+            for A in As: loss += quantization_loss(A.weight * s[:,None], scale=1/s[:,None])
+        for B in Bs: loss += quantization_loss(B.weight / s, scale=s)
         loss.backward()
         optimizer.step()
         if (i + 1) % 10 == 0:
