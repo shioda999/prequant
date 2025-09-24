@@ -70,7 +70,7 @@ def apply_smooth(model, a=0., b=0.5, device=None):
     for l in layers:
         l.to(device)
         # smooth_vo(l)
-        smooth_qkv(l, a, b)
         smooth_mlp(l, a, b)
+        smooth_qkv(l, a, b)
         l.cpu()
     smooth_head(model, a, b)
