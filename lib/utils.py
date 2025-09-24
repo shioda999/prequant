@@ -231,8 +231,7 @@ class LargeMatrixDataset(torch.utils.data.Dataset):
     巨大な行列からミニバッチでベクトルを取得するデータセット
     """
     def __init__(self, matrix, indices=None, transform=None):
-        self.matrix = matrix.float()
-        self.matrix.requires_grad = False
+        self.matrix = matrix.float().detach()
             
         if indices is None:
             self.indices = torch.arange(self.matrix.size(0))
