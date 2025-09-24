@@ -236,7 +236,7 @@ def apply_rotate_optim(model, lr=0.01, num_iterations=1, batch_size=512, device=
     # H = torch.nn.Parameter(H)
     # H = torch.stack([generate_hadamard_matrix(sz, torch.device("cpu")) for _ in range(dim//sz)])
     Hs = block_diag_hadamard_adaptive(model, sz)
-    Hs = [torch.nn.Parameter(H) for H in Hs]
+    Hs = [torch.nn.Parameter(H.to(device)) for H in Hs]
 
     loss_fn = quantization_loss
     # loss_fn = QuantizationLoss.apply
@@ -272,5 +272,5 @@ def apply_rotate_optim(model, lr=0.01, num_iterations=1, batch_size=512, device=
     # print(Hs)
     H = torch.block_diag(*Hs)
     print(H @ H.T)
-    apply_rotate(model, H)
+    apply_rotate(model, H.cpu())
 
