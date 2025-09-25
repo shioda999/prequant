@@ -1,6 +1,7 @@
 import torch
 from .get_module import *
 from .utils import *
+import math
 
 @torch.no_grad()
 def _smooth_fn(As, Bs, p=2, a=0., b=0.5):
@@ -11,7 +12,18 @@ def _smooth_fn(As, Bs, p=2, a=0., b=0.5):
     for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
     for B in Bs: B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
 
-def smooth_fn(As, Bs, n_iterations=100, lr=0.005, a=None, b=None, device=None):
+def quantization_loss_for_smooth(w, group_sz=32, nbits=4, scale=None):
+    shape = w.shape
+    w = w.reshape(-1, group_sz)
+    Qp, Qn = 2 ** (nbits - 1) - 1, -2 ** (nbits - 1)
+    s = torch.maximum(w.max(dim=1, keepdim=True)[0] / Qp, w.min(dim=1, keepdim=True)[0] / Qn)
+    w_q = torch.round(w.div(s)).clamp(Qn, Qp).mul(s)
+    delta = w - w_q
+    delta = delta.reshape(shape).mul(scale)
+    grad = (scale.pow(2) * delta.detach()).mean()
+    return delta.pow(2).sum().detach() + (grad - grad.detach())
+
+def smooth_fn(As, Bs, n_iterations=100, lr=1e-4, a=None, b=None, device=None):
     if device is None: device = get_device()
     s = torch.nn.Parameter(torch.ones(Bs[0].weight.shape[-1], device=device))
     optimizer = torch.optim.Adam([s], lr=lr)
@@ -21,12 +33,13 @@ def smooth_fn(As, Bs, n_iterations=100, lr=0.005, a=None, b=None, device=None):
         optimizer.zero_grad()
         loss = 0
         if len(As[0].weight.shape) > 1:
-            for A in As: loss += quantization_loss(A.weight * s[:,None], scale=1/s[:,None])
-        for B in Bs: loss += quantization_loss(B.weight / s, scale=s)
+            for A in As: loss += quantization_loss_for_smooth(A.weight * s[:,None], scale=1/s[:,None])
+        for B in Bs: loss += quantization_loss_for_smooth(B.weight / s, scale=s)
         loss.backward()
         optimizer.step()
-        if (i + 1) % 10 == 0:
+        if i == 0 or (i + 1) % 25 == 0:
             print(f"Iteration {i+1}/{n_iterations}, Loss: {loss.item():.6f}")
+    print(s)
     s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
     for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
     for B in Bs: B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)

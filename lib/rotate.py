@@ -163,9 +163,12 @@ def apply_rotate(model, H):
 @torch.no_grad()
 def apply_rotate_adaptive(model, sz=32, flags=None, device=None):
     if device is None: device = get_device()
-    H = generate_hadamard_matrix(sz, torch.device("cpu"))
-    eye = torch.eye(sz, device=H.device, dtype=H.dtype)
-    H_list = [H if f else eye for f in flags]
+    if flags is None:
+        H_list = block_diag_hadamard_adaptive(model, sz)
+    else:
+        H = generate_hadamard_matrix(sz, torch.device("cpu"))
+        eye = torch.eye(sz, device=H.device, dtype=H.dtype)
+        H_list = [H if f else eye for f in flags]
     H = torch.block_diag(*H_list)
     apply_rotate(model, H)
 
@@ -198,7 +201,9 @@ def block_diag_hadamard_adaptive(model, sz=32):
 def get_vector_dataset(model):
     D = []
     def vec_append(m, t=False):
-        D.append(m.weight.T.clone() if t else m.weight.clone())
+        w = m.weight.T.clone() if t else m.weight.clone()
+        w = w / w.abs().mean()
+        D.append(w)
     vec_append(get_embed(model))
     for l in get_layers(model):
         norm = get_pre_norm(l)
@@ -219,7 +224,17 @@ def get_vector_dataset(model):
     defuse_norm(norm, [head])
     return LargeMatrixDataset(torch.concat(D))
 
-def apply_rotate_optim(model, lr=0.01, num_iterations=1, batch_size=512, device=None):
+def quantization_loss_for_rotate(w, group_sz=32, nbits=4, use_ste=False):
+    shape = w.shape
+    w = w.reshape(-1, group_sz)
+    Qp, Qn = 2 ** (nbits - 1) - 1, -2 ** (nbits - 1)
+    s = torch.maximum(w.max(dim=1, keepdim=True)[0] / Qp, w.min(dim=1, keepdim=True)[0] / Qn)
+    round_fn = round_ste if use_ste else torch.round
+    w_q = round_fn(w.div(s)).clamp(Qn, Qp).mul(s)
+    delta = w_q - w.detach()
+    return delta.pow(2).sum()
+
+def apply_rotate_optim(model, lr=0.1, num_iterations=1, batch_size=512, device=None):
     from .cayley import SGDG
     if device is None: device = get_device()
     # w = get_embed(model).weight.clone().float().to(device)
@@ -235,17 +250,16 @@ def apply_rotate_optim(model, lr=0.01, num_iterations=1, batch_size=512, device=
     # H = torch.eye(dim, device=device, dtype=torch.float)
     # H = torch.nn.Parameter(H)
     # H = torch.stack([generate_hadamard_matrix(sz, torch.device("cpu")) for _ in range(dim//sz)])
-    Hs = block_diag_hadamard_adaptive(model, sz)
+    Hs = [generate_hadamard_matrix(dim, torch.device("cpu"))]
+    # Hs = block_diag_hadamard_adaptive(model, sz)
     Hs = [torch.nn.Parameter(H.to(device)) for H in Hs]
 
-    loss_fn = quantization_loss
+    loss_fn = quantization_loss_for_rotate
     # loss_fn = QuantizationLoss.apply
     
     # Cayley optimizer
     # optimizer = SGDG([H], lr=lr, stiefel=True)
     optimizer = SGDG(Hs, lr=lr, stiefel=True)
-    
-    loss_history = []
     
     for i in range(num_iterations):
         for j, (vec, _) in enumerate(dataloader):
@@ -263,14 +277,12 @@ def apply_rotate_optim(model, lr=0.01, num_iterations=1, batch_size=512, device=
             # Optimization step with Cayley transform
             optimizer.step()
             
-            loss_history.append(loss.item())
-            
-            if (j + 1) % 100 == 0:
+            if j == 0 or (j + 1) % 100 == 0:
                 print(f"Iteration {i+1}/{num_iterations}, Loss: {loss.item():.6f}")
+            # break
             
     model.to(device)
     # print(Hs)
     H = torch.block_diag(*Hs)
-    print(H @ H.T)
     apply_rotate(model, H.cpu())
 
