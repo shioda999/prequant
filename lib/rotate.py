@@ -228,10 +228,10 @@ def quantization_loss_for_rotate(w, group_sz=32, nbits=4, use_ste=False):
     shape = w.shape
     w = w.reshape(-1, group_sz)
     Qp, Qn = 2 ** (nbits - 1) - 1, -2 ** (nbits - 1)
-    s = torch.maximum(w.max(dim=1, keepdim=True)[0] / Qp, w.min(dim=1, keepdim=True)[0] / Qn)
+    s = torch.maximum(w.max(dim=1, keepdim=True)[0] / Qp, w.min(dim=1, keepdim=True)[0] / Qn).detach()
     round_fn = round_ste if use_ste else torch.round
     w_q = round_fn(w.div(s)).clamp(Qn, Qp).mul(s)
-    delta = w_q - w.detach()
+    delta = w - w_q
     return delta.pow(2).sum()
 
 def apply_rotate_optim(model, lr=0.1, num_iterations=1, batch_size=512, device=None):
@@ -239,12 +239,14 @@ def apply_rotate_optim(model, lr=0.1, num_iterations=1, batch_size=512, device=N
     if device is None: device = get_device()
     # w = get_embed(model).weight.clone().float().to(device)
     dataset = get_vector_dataset(model)
+    test = False
     
     import platform
     num_workers = 0 if platform.system().lower() == 'windows' else 2
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
-                                              shuffle=True, num_workers=num_workers)
+                                              shuffle=not test, num_workers=num_workers)
     model.cpu()
+    if test: num_iterations = 100
     dim = get_dim(model)
     sz = 32
     # H = torch.eye(dim, device=device, dtype=torch.float)
@@ -279,7 +281,7 @@ def apply_rotate_optim(model, lr=0.1, num_iterations=1, batch_size=512, device=N
             
             if j == 0 or (j + 1) % 100 == 0:
                 print(f"Iteration {i+1}/{num_iterations}, Loss: {loss.item():.6f}")
-            # break
+            if test: break
             
     model.to(device)
     # print(Hs)
