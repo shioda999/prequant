@@ -4,16 +4,7 @@ from .utils import *
 import math
 import random
 
-@torch.no_grad()
-def _smooth_fn(As, Bs, p=2, a=0., b=0.5):
-    sa = torch.concat([normalize(A.weight)[..., None] for A in As]).reshape(As[0].weight.shape[0], -1).abs().pow(p).mean(dim=1).pow(1/p)
-    sb = torch.concat([normalize(B.weight) for B in Bs]).reshape(-1, Bs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p)
-    s = sa.pow(-a) * sb.pow(b)
-    s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
-    for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
-    for B in Bs: B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
-
-def quantization_loss_for_smooth(w, group_sz=32, nbits=4, scale=None):
+def quantization_loss(w, group_sz=32, nbits=4, scale=None):
     shape = w.shape
     w = (w / scale).reshape(-1, group_sz)
     Qp, Qn = 2 ** (nbits - 1) - 1, -2 ** (nbits - 1)
@@ -23,89 +14,15 @@ def quantization_loss_for_smooth(w, group_sz=32, nbits=4, scale=None):
     delta = delta.reshape(shape).mul(scale)
     return delta.pow(2).sum().detach()
 
-def bincount_ste(t):
-    result = torch.zeros((int(t.max() + 3),))
-    ones = torch.ones_like(t) + (t - t.detach())
-    result = torch.scatter_reduce(result, 0, t.to(torch.long), ones, "sum")
-    result = torch.scatter_reduce(result, 0, t.to(torch.long) + 1, ones * 5, "sum")
-    result = torch.scatter_reduce(result, 0, t.to(torch.long) + 2, ones, "sum")
-    return result
-
-def _quantization_loss_for_smooth(w, group_sz=32, nbits=4, scale=None):
-    shape = w.shape
-    w = (w / scale).reshape(-1, group_sz)
-    Qp, Qn = 2 ** (nbits - 1) - 1, -2 ** (nbits - 1)
-    s = torch.maximum(w.max(dim=1, keepdim=True)[0] / Qp, w.min(dim=1, keepdim=True)[0] / Qn)
-    w_q = round_ste(w.div(s)).clamp(Qn, Qp)
-    delta = w - w_q.mul(s)
-    delta = delta.reshape(shape).mul(scale)
-
-    # bin = torch.bincount((w_q - Qn).reshape(-1))
-    bin = bincount_ste((w_q - Qn).reshape(-1))
-    p = bin / w.numel()
-    entropy = (-p * p.log()).sum()
-
-    grad = -entropy
-    # return -entropy
-    return delta.pow(2).sum().detach() + (grad - grad.detach())
-
-def __smooth_fn(As, Bs, n_iterations=100, lr=1e-3, a=None, b=None, device=None):
-    if device is None: device = get_device()
-    s = torch.nn.Parameter(torch.ones(Bs[0].weight.shape[-1], device=device))
-    optimizer = torch.optim.Adam([s], lr=lr)
-    for A in As: A.to(device)
-    for B in Bs: B.to(device)
-    for i in range(n_iterations):
-        optimizer.zero_grad()
-        loss = 0
-        if len(As[0].weight.shape) > 1:
-            for A in As: loss += quantization_loss_for_smooth(A.weight, scale=1/s[:,None])
-        for B in Bs: loss += quantization_loss_for_smooth(B.weight, scale=s)
-        loss.backward()
-        optimizer.step()
-        if i == 0 or (i + 1) % 25 == 0:
-            print(f"Iteration {i+1}/{n_iterations}, Loss: {loss.item():.6f}")
-    print(s)
-    s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
-    for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
-    for B in Bs: B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
-    for A in As: A.cpu()
-    for B in Bs: B.cpu()
-
-def _decide_step_size(s, index, chunk_idx, loss_fn, current_loss, init_step_size=0.01, r=1.5):
-    step = init_step_size
-    init_s = s[index]
-    best_loss = current_loss
-    best_s = init_s
-    for i in range(10):
-        s[index] = init_s + step
-        # step *= r
-        step = init_s * (i + 1)
-        loss = loss_fn(chunk_idx)
-        if best_loss > loss:
-            best_loss = loss
-            best_s = s[index]
-            break
-    s[index] = best_s
-    return loss
-
-def decide_step_size(s, index, chunk_idx, loss_fn, current_loss, init_step_size=0.025, r=1.5):
-    init_s = s[index]
-    loss = _decide_step_size(s, index, chunk_idx, loss_fn, current_loss, init_step_size, r)
-    tmp_s, s[index] = s[index], init_s
-    loss2 = _decide_step_size(s, index, chunk_idx, loss_fn, current_loss, -init_step_size, r)
-    if loss < loss2: loss2, s[index] = loss, tmp_s
-    return loss2
-
 @torch.no_grad() 
-def smooth_fn(As, Bs, n_iterations=1000, a=None, b=None, device=None, chunk_size=32):
+def _smooth_fn(As, Bs, n_iterations=100, a=None, b=None, device=None, chunk_size=32):
     if device is None: device = get_device()
     s = torch.ones(Bs[0].weight.shape[-1], device=device)
     for A in As: A.to(device)
     for B in Bs: B.to(device)
     
     # アニーリングパラメータ
-    step_size = 0.025
+    step_size = 0.1
     initial_temp = 0.0
     cooling_rate = 0.995
     
@@ -120,8 +37,8 @@ def smooth_fn(As, Bs, n_iterations=1000, a=None, b=None, device=None, chunk_size
     def compute_loss():
         loss = 0
         if len(As[0].weight.shape) > 1:
-            for A in As: loss += quantization_loss_for_smooth(A.weight, scale=1/s[:,None])
-        for B in Bs: loss += quantization_loss_for_smooth(B.weight, scale=s)
+            for A in As: loss += quantization_loss(A.weight, scale=1/s[:,None])
+        for B in Bs: loss += quantization_loss(B.weight, scale=s)
         return loss
     
     def compute_chunk_loss(chunk_idx):
@@ -133,11 +50,11 @@ def smooth_fn(As, Bs, n_iterations=1000, a=None, b=None, device=None, chunk_size
         if len(As[0].weight.shape) > 1:
             for A in As: 
                 chunk_weight = A.weight[chunk_slice,:]
-                loss += quantization_loss_for_smooth(chunk_weight, scale=1/chunk_s[:,None])
+                loss += quantization_loss(chunk_weight, scale=1/chunk_s[:,None])
         
         for B in Bs:
             chunk_weight = B.weight[:,chunk_slice]
-            loss += quantization_loss_for_smooth(chunk_weight, scale=chunk_s)
+            loss += quantization_loss(chunk_weight, scale=chunk_s)
         
         return loss
     
@@ -158,14 +75,12 @@ def smooth_fn(As, Bs, n_iterations=1000, a=None, b=None, device=None, chunk_size
             # 元の値を保存
             old_val = s[global_idx].item()
             
-            #±stepを適用
+            # ±stepを適用
             step = step_size if random.random() > 0.5 else -step_size
             s[global_idx] += step
             
             # このチャンクの新しい損失を計算
             new_chunk_loss = compute_chunk_loss(chunk_idx)
-
-            # new_chunk_loss = decide_step_size(s, global_idx, chunk_idx, compute_chunk_loss, chunk_losses[chunk_idx])
             
             # メトロポリス基準で受容判定
             accept = False
@@ -201,6 +116,10 @@ def smooth_fn(As, Bs, n_iterations=1000, a=None, b=None, device=None, chunk_size
     for B in Bs: B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
     for A in As: A.cpu()
     for B in Bs: B.cpu()
+
+def smooth_fn(As, Bs, n_iterations=100, a=None, b=None, device=None, chunk_size=32):
+    # temp
+    pass
 
 def smooth_qkv(layer, a, b):
     norm = get_pre_norm(layer)

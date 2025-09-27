@@ -75,13 +75,12 @@ def main():
     model_name = args.model
     model, tokenizer = get_model(model_name)
 
-    
     divide(model)
     
     apply_config(model)
     result = calc_quantize_error(model)
-    # apply_smooth(model)
-    apply_rotate_optim(model)
+    # apply_rotate_optim(model)
+    apply_smooth(model)
     # apply_permute_annealing_swap_only_fast(model)
 
     # sz = 32
