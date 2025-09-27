@@ -101,6 +101,8 @@ def decide_step_size(s, index, chunk_idx, loss_fn, current_loss, init_step_size=
 def smooth_fn(As, Bs, n_iterations=100, a=None, b=None, device=None, chunk_size=32):
     if device is None: device = get_device()
     s = torch.ones(Bs[0].weight.shape[-1], device=device)
+    for A in As: A.to(device)
+    for B in Bs: B.to(device)
     
     # アニーリングパラメータ
     step_size = 0.025
@@ -197,6 +199,8 @@ def smooth_fn(As, Bs, n_iterations=100, a=None, b=None, device=None, chunk_size=
     s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
     for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
     for B in Bs: B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
+    for A in As: A.cpu()
+    for B in Bs: B.cpu()
 
 def smooth_qkv(layer, a, b):
     norm = get_pre_norm(layer)
