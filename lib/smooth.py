@@ -125,8 +125,8 @@ def smooth_fn(As, Bs, n_iterations=500, a=None, b=None, device=None, chunk_size=
 
     for i in range(n_iterations):
         prev_s = s.clone()
-        idx = torch.randint(0, chunk_size, (num_chunks,)) + torch.arange(num_chunks) * chunk_size
-        s[idx] += torch.where(torch.rand((num_chunks,)) > .5, step_size, -step_size)
+        idx = torch.randint(0, chunk_size, (num_chunks,), device=device) + torch.arange(num_chunks, device=device) * chunk_size
+        s[idx] += torch.where(torch.rand((num_chunks,), device=device) > .5, step_size, -step_size)
         new_losses = compute_loss()
         s = torch.where((new_losses < losses)[:,None].expand(-1, chunk_size).reshape(-1), s, prev_s)
         losses = torch.minimum(new_losses, losses)
