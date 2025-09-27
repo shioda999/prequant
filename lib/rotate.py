@@ -145,7 +145,7 @@ def apply_rotate(model, H):
     device = next(model.parameters()).device
     model.cpu()
     dim = get_dim(model)
-    # model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
+    model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
 
     rotate_embedding(model, H.cpu())
     layers = get_layers(model)
@@ -158,7 +158,7 @@ def apply_rotate(model, H):
         rotate_qkv(l, H)
         torch.cuda.empty_cache()
         l.cpu()
-    # rotate_head(model, H.cpu())
+    rotate_head(model, H.cpu())
 
 @torch.no_grad()
 def apply_rotate_adaptive(model, sz=32, flags=None, device=None):
@@ -186,16 +186,27 @@ def apply_rotate_vo(model, device=None):
 
 def block_diag_hadamard_adaptive(model, sz=32):
     emb = get_embed(model)
+    model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
+    norm, head = get_head_norm(model), get_head(model)
     tmp = emb.weight.clone()
+    tmp_norm, tmp_head = norm.weight.clone(), head.weight.clone()
     before = q_err(emb)
+    before2 = q_err(head, norm=norm)
 
     H = generate_hadamard_matrix(sz, torch.device("cpu"))
+    dim = get_dim(model)
     rotate_embedding(model, H)
+    rotate_head(model, torch.block_diag(*[H for _ in range(dim//sz)]))
     after = q_err(emb)
+    after2 = q_err(head)
     emb.weight.data = tmp
-    flags = before > after
+    norm.weight.data = tmp_norm
+    head.weight.data = tmp_head
+    flags = torch.logical_and(before > after, before2 > after2)
     print(before)
     print(after)
+    print(before > after)
+    print(before2 > after2)
     print(flags)
     eye = torch.eye(sz, device=H.device, dtype=H.dtype)
     H_list = [H if f else eye for f in flags]
