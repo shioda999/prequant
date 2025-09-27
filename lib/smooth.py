@@ -21,7 +21,7 @@ def quantization_loss_for_smooth(w, group_sz=32, nbits=4, scale=None):
     w_q = torch.round(w.div(s)).clamp(Qn, Qp).mul(s)
     delta = w - w_q
     delta = delta.reshape(shape).mul(scale)
-    return delta.pow(2).sum().detach()
+    return delta.pow(2)
 
 def bincount_ste(t):
     result = torch.zeros((int(t.max() + 3),))
@@ -59,8 +59,8 @@ def __smooth_fn(As, Bs, n_iterations=100, lr=1e-3, a=None, b=None, device=None):
         optimizer.zero_grad()
         loss = 0
         if len(As[0].weight.shape) > 1:
-            for A in As: loss += quantization_loss_for_smooth(A.weight, scale=1/s[:,None])
-        for B in Bs: loss += quantization_loss_for_smooth(B.weight, scale=s)
+            for A in As: loss += quantization_loss_for_smooth(A.weight, scale=1/s[:,None]).sum()
+        for B in Bs: loss += quantization_loss_for_smooth(B.weight, scale=s).sum()
         loss.backward()
         optimizer.step()
         if i == 0 or (i + 1) % 25 == 0:
@@ -98,14 +98,13 @@ def decide_step_size(s, index, chunk_idx, loss_fn, current_loss, init_step_size=
     return loss2
 
 @torch.no_grad() 
-def smooth_fn(As, Bs, n_iterations=100, a=None, b=None, device=None, chunk_size=32):
+def smooth_fn(As, Bs, n_iterations=500, a=None, b=None, device=None, chunk_size=32, step_size=0.01):
     if device is None: device = get_device()
     s = torch.ones(Bs[0].weight.shape[-1], device=device)
     for A in As: A.to(device)
     for B in Bs: B.to(device)
     
     # アニーリングパラメータ
-    step_size = 0.025
     initial_temp = 0.0
     cooling_rate = 0.995
     
@@ -113,89 +112,28 @@ def smooth_fn(As, Bs, n_iterations=100, a=None, b=None, device=None, chunk_size=
     num_chunks = (len(s) + chunk_size - 1) // chunk_size
     chunks = [slice(i * chunk_size, min((i + 1) * chunk_size, len(s))) for i in range(num_chunks)]
     
-    # 各チャンクの状態を管理
-    chunk_temps = torch.full((num_chunks,), initial_temp, device=device)
-    chunk_best_s = [s[chunk_slice].clone() for chunk_slice in chunks]
-    
     def compute_loss():
         loss = 0
         if len(As[0].weight.shape) > 1:
-            for A in As: loss += quantization_loss_for_smooth(A.weight, scale=1/s[:,None])
-        for B in Bs: loss += quantization_loss_for_smooth(B.weight, scale=s)
-        return loss
-    
-    def compute_chunk_loss(chunk_idx):
-        """指定されたチャンクの損失を計算"""
-        loss = 0
-        chunk_slice = chunks[chunk_idx]
-        chunk_s = s[chunk_slice]
+            for A in As: loss += quantization_loss_for_smooth(A.weight, scale=1/s[:,None]).reshape(A.weight.shape[0],-1).sum(dim=1)
+        for B in Bs: loss += quantization_loss_for_smooth(B.weight, scale=s).reshape(-1, B.weight.shape[-1]).sum(dim=0)
+        return loss.reshape(num_chunks, -1).sum(dim=1)
         
-        if len(As[0].weight.shape) > 1:
-            for A in As: 
-                chunk_weight = A.weight[chunk_slice,:]
-                loss += quantization_loss_for_smooth(chunk_weight, scale=1/chunk_s[:,None])
-        
-        for B in Bs:
-            chunk_weight = B.weight[:,chunk_slice]
-            loss += quantization_loss_for_smooth(chunk_weight, scale=chunk_s)
-        
-        return loss
-    
     # 各チャンクの初期損失を計算
-    chunk_losses = [compute_chunk_loss(i) for i in range(num_chunks)]
-    
-    for i in range(n_iterations):
-        # 各チャンクで並列に試行
-        for chunk_idx, chunk_slice in enumerate(chunks):
-            chunk_len = chunk_slice.stop - chunk_slice.start
-            if chunk_len == 0:
-                continue
-                
-            # このチャンク内でランダムなインデックスを選択
-            local_idx = random.randint(0, chunk_len - 1)
-            global_idx = chunk_slice.start + local_idx
-            
-            # 元の値を保存
-            old_val = s[global_idx].item()
-            
-            #±stepを適用
-            step = step_size if random.random() > 0.5 else -step_size
-            s[global_idx] += step
-            
-            # このチャンクの新しい損失を計算
-            new_chunk_loss = compute_chunk_loss(chunk_idx)
+    losses = compute_loss()
+    initial_loss = losses.sum()
 
-            # new_chunk_loss = decide_step_size(s, global_idx, chunk_idx, compute_chunk_loss, chunk_losses[chunk_idx])
-            
-            # メトロポリス基準で受容判定
-            accept = False
-            if new_chunk_loss < chunk_losses[chunk_idx]:
-                accept = True
-            else:
-                delta = new_chunk_loss - chunk_losses[chunk_idx]
-                prob = math.exp(-delta / chunk_temps[chunk_idx])
-                accept = random.random() < prob
-            
-            if accept:
-                chunk_losses[chunk_idx] = new_chunk_loss
-                chunk_best_s[chunk_idx] = s[chunk_slice].clone()
-            else:
-                # 元に戻す
-                s[global_idx] = old_val
-        
-        # 全チャンクの温度を更新
-        chunk_temps *= cooling_rate
-        
-        if i == 0 or (i + 1) % 25 == 0:
-            total_loss = sum(chunk_losses)
-            avg_temp = chunk_temps.mean().item()
-            print(f"Iteration {i+1}/{n_iterations}, Loss: {total_loss:.6f}, Temp: {avg_temp:.4f}")
-    
-    # 最良解を適用
-    for chunk_idx, chunk_slice in enumerate(chunks):
-        s[chunk_slice] = chunk_best_s[chunk_idx]
-    
-    print(s, compute_loss())
+    for i in range(n_iterations):
+        prev_s = s.clone()
+        idx = torch.randint(0, chunk_size, (num_chunks,)) + torch.arange(num_chunks) * chunk_size
+        s[idx] += torch.where(torch.rand((num_chunks,)) > .5, step_size, -step_size)
+        new_losses = compute_loss()
+        s = torch.where((new_losses < losses)[:,None].expand(-1, chunk_size).reshape(-1), s, prev_s)
+        losses = torch.minimum(new_losses, losses)
+
+    print(s)
+    print(losses.sum() / initial_loss)
+
     s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
     for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
     for B in Bs: B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)

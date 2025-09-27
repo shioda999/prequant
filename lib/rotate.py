@@ -194,6 +194,9 @@ def block_diag_hadamard_adaptive(model, sz=32):
     after = q_err(emb)
     emb.weight.data = tmp
     flags = before > after
+    print(before)
+    print(after)
+    print(flags)
     eye = torch.eye(sz, device=H.device, dtype=H.dtype)
     H_list = [H if f else eye for f in flags]
     return H_list
@@ -234,7 +237,7 @@ def quantization_loss_for_rotate(w, group_sz=32, nbits=4, use_ste=False):
     delta = w - w_q
     return delta.pow(2).sum()
 
-def apply_rotate_optim(model, lr=0.1, num_iterations=1, batch_size=512, device=None):
+def apply_rotate_optim(model, lr=0.01, num_iterations=1, batch_size=512, device=None):
     from .cayley import SGDG
     if device is None: device = get_device()
     # w = get_embed(model).weight.clone().float().to(device)
@@ -264,6 +267,7 @@ def apply_rotate_optim(model, lr=0.1, num_iterations=1, batch_size=512, device=N
     optimizer = SGDG(Hs, lr=lr, stiefel=True)
     
     for i in range(num_iterations):
+        loss_history = []
         for j, (vec, _) in enumerate(dataloader):
             optimizer.zero_grad()
             
@@ -272,6 +276,7 @@ def apply_rotate_optim(model, lr=0.1, num_iterations=1, batch_size=512, device=N
             vec = vec.detach().to(device)
             H = torch.block_diag(*Hs)
             loss = loss_fn(vec @ H) / vec.shape[0]
+            loss_history.append(loss)
             
             # Backward pass
             loss.backward()
@@ -279,9 +284,9 @@ def apply_rotate_optim(model, lr=0.1, num_iterations=1, batch_size=512, device=N
             # Optimization step with Cayley transform
             optimizer.step()
             
-            if j == 0 or (j + 1) % 100 == 0:
-                print(f"Iteration {i+1}/{num_iterations}, Loss: {loss.item():.6f}")
             if test: break
+
+        print(f"Iteration {i+1}/{num_iterations}, Loss: {torch.tensor(loss_history).mean().item():.6f}")
             
     model.to(device)
     # print(Hs)
