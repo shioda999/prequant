@@ -213,8 +213,10 @@ def block_diag_hadamard_adaptive_v2(model, sz=32):
     for k in before:
         r = after[k] / before[k]
         ratios.append(r)
-    flag = torch.stack(ratios).sqrt().mean(dim=0) < 1
+        print(k, r)
+    flag = torch.stack(ratios).mean(dim=0) < 1
     flag = torch.logical_and(flag, after["embed"] < before["embed"])
+    print(flag)
     eye = torch.eye(sz, device=H.device, dtype=H.dtype)
     H_list = [H if f else eye for f in flag]
     del model
@@ -256,7 +258,7 @@ def quantization_loss_for_rotate(w, group_sz=32, nbits=4, use_ste=False):
     delta = w - w_q
     return delta.pow(2).sum()
 
-def apply_rotate_optim(model, lr=0.01, num_iterations=1, batch_size=512, device=None):
+def apply_rotate_optim(model, lr=0.01, num_iterations=1, batch_size=512, initial_H_list=None, device=None):
     from .cayley import SGDG
     if device is None: device = get_device()
     # w = get_embed(model).weight.clone().float().to(device)
@@ -271,12 +273,10 @@ def apply_rotate_optim(model, lr=0.01, num_iterations=1, batch_size=512, device=
     if test: num_iterations = 100
     dim = get_dim(model)
     sz = 32
-    # H = torch.eye(dim, device=device, dtype=torch.float)
-    # H = torch.nn.Parameter(H)
-    # H = torch.stack([generate_hadamard_matrix(sz, torch.device("cpu")) for _ in range(dim//sz)])
-    # Hs = [generate_hadamard_matrix(dim, torch.device("cpu"))]
-    Hs = block_diag_hadamard_adaptive(model, sz)
-    Hs = [torch.nn.Parameter(H.to(device)) for H in Hs]
+    if initial_H_list is None:
+        initial_H_list = block_diag_hadamard_adaptive(model, sz)
+
+    Hs = [torch.nn.Parameter(H.to(device)) for H in initial_H_list]
 
     loss_fn = quantization_loss_for_rotate
     # loss_fn = QuantizationLoss.apply

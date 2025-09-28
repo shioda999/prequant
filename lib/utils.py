@@ -193,10 +193,7 @@ def defuse_norm(norm, fcs):
 
 @torch.no_grad()
 def mean_norm(norm, H):
-    if H.shape[0] == norm.prev_weight.shape[0]:
-        t = H.T.abs() @ norm.prev_weight.abs().float() * norm.prev_weight.float().sign()
-    else:
-        t = (H.T.abs() @ norm.prev_weight.abs().float().reshape(-1, H.shape[0]).T).reshape(-1) * norm.prev_weight.float().sign()
+    t = (H.T.abs().pow(2) @ norm.prev_weight.abs().float().reshape(-1, H.shape[0]).T).reshape(-1) * norm.prev_weight.float().sign()
     norm.prev_weight = t
 
 @torch.no_grad()
