@@ -84,7 +84,7 @@ def main():
     apply_rotate(model, H)
     # apply_rotate_adaptive(model, 32, [False] * 3 + [True] * 29)
     # apply_rotate_optim(model, num_iterations=0)
-    # apply_smooth(model)
+    apply_smooth(model)
     # apply_permute_annealing_swap_only_fast(model)
 
     # sz = 32
@@ -109,7 +109,7 @@ def main():
     # apply_smooth(model)
 
     after = calc_quantize_error(model)
-    # apply_quantize(model)
+    apply_quantize(model)
     undivide(model)
 
     # result.update({k + "_a": v for k, v in after.items()})
