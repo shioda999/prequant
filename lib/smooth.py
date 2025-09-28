@@ -142,8 +142,8 @@ def smooth_fn_(As, Bs, n_iterations=500, a=None, b=None, device=None, chunk_size
 
 @torch.no_grad() 
 def smooth_fn(As, Bs, n_iterations=500, a=None, b=None, device=None, chunk_size=32, step_size=0.01):
-    smooth_fn_(As, Bs, 100, a, b, device, chunk_size, step_size=step_size * 16)
-    smooth_fn_(As, Bs, 100, a, b, device, chunk_size, step_size=step_size * 4)
+    # smooth_fn_(As, Bs, 100, a, b, device, chunk_size, step_size=step_size * 16)
+    # smooth_fn_(As, Bs, 100, a, b, device, chunk_size, step_size=step_size * 4)
     smooth_fn_(As, Bs, n_iterations, a, b, device, chunk_size, step_size=step_size)
 
 

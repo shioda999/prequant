@@ -202,9 +202,8 @@ def block_diag_hadamard_adaptive(model, sz=32):
     emb.weight.data = tmp
     norm.weight.data = tmp_norm
     head.weight.data = tmp_head
-    flags = torch.logical_and(before > after, before2 > after2)
-    print(before)
-    print(after)
+    flags = before > after * 1.01
+    # flags = torch.logical_and(before > after, before2 > after2)
     print(before > after)
     print(before2 > after2)
     print(flags)
