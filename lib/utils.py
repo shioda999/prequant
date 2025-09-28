@@ -110,7 +110,7 @@ def q_err(m, nbits=4, sz=32, norm=None, t=False):
     if t is False:
         return delta.reshape(w.shape[0],-1, sz).float().pow(2).mean(dim=-1).mean(dim=0)
     else:
-        return delta.reshape(sz, -1).float().pow(2).mean(dim=-1)
+        return delta.reshape(sz, -1, w.shape[-1]).float().pow(2).mean(dim=-1).mean(dim=0)
 
 @torch.no_grad()
 def calc_quantize_error(model, sz=32):
@@ -139,23 +139,27 @@ def calc_quantize_error(model, sz=32):
     return result
 
 @torch.no_grad()
-def calc_quantize_error_v2(model, labels, sz=32):
-    error = 0
-    if "embed" in labels:
-        error += q_err(get_embed(model), sz=sz)
+def calc_quantize_error_v2(model, sz=32):
+    result = {}
+
+    def register(m, label, nbits=4, norm=None, t=False):
+        err = q_err(m, nbits, norm=norm, t=t, sz=sz)
+        result[label] = err
+
+    register(get_embed(model), "embed")
     layers = get_layers(model)
     for i, l in enumerate(layers):
         pre_norm, post_norm = get_pre_norm(l), get_post_norm(l)
-        if "q" in labels: error += q_err(get_q(l), norm=pre_norm, sz=sz)
-        if "k" in labels: error += q_err(get_k(l), norm=pre_norm, sz=sz)
-        if "v" in labels: error += q_err(get_v(l), norm=pre_norm, sz=sz)
-        if "o" in labels: error += q_err(get_o(l), t=True, sz=sz)
-        if "gate" in labels: error += q_err(get_gate(l), norm=post_norm, sz=sz)
-        if "up" in labels: error += q_err(get_up(l), norm=post_norm, sz=sz)
-        if "down" in labels: error += q_err(get_down(l), t=True, sz=sz)
-    if "head" in labels:
-        error += q_err(get_head(model), norm=get_head_norm(model), sz=sz)
-    return error
+        register(get_q(l), f"{i:02}.q", norm=pre_norm)
+        register(get_k(l), f"{i:02}.k", norm=pre_norm)
+        register(get_v(l), f"{i:02}.v", 6, norm=pre_norm)
+        register(get_o(l), f"{i:02}.o", t=True)
+        register(get_gate(l), f"{i:02}.gate", norm=post_norm)
+        register(get_up(l), f"{i:02}.up", norm=post_norm)
+        register(get_down(l), f"{i:02}.down", 6, t=True)
+    register(get_head(model), "head", norm=get_head_norm(model))
+
+    return result
 
 @torch.no_grad()
 def fuse_norm(norm, fcs):
@@ -189,7 +193,10 @@ def defuse_norm(norm, fcs):
 
 @torch.no_grad()
 def mean_norm(norm, H):
-    t = H.T.abs() @ norm.prev_weight.abs().float() * norm.prev_weight.float().sign()
+    if H.shape[0] == norm.prev_weight.shape[0]:
+        t = H.T.abs() @ norm.prev_weight.abs().float() * norm.prev_weight.float().sign()
+    else:
+        t = (H.T.abs() @ norm.prev_weight.abs().float().reshape(-1, H.shape[0]).T).reshape(-1) * norm.prev_weight.float().sign()
     norm.prev_weight = t
 
 @torch.no_grad()

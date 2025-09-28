@@ -142,6 +142,8 @@ def _apply_rotate(model, sz=32):
 
 @torch.no_grad()
 def apply_rotate(model, H):
+    if isinstance(H, list):
+        H = torch.block_diag(*H)
     device = next(model.parameters()).device
     model.cpu()
     dim = get_dim(model)
@@ -152,9 +154,9 @@ def apply_rotate(model, H):
     H = H.to(device)
     for l in layers:
         l.to(device)
+        rotate_mlp(l, H)
         rotate_o(l, H)
         # rotate_vo_duquant(l)
-        rotate_mlp(l, H)
         rotate_qkv(l, H)
         torch.cuda.empty_cache()
         l.cpu()
@@ -186,29 +188,35 @@ def apply_rotate_vo(model, device=None):
 
 def block_diag_hadamard_adaptive(model, sz=32):
     emb = get_embed(model)
-    model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
-    norm, head = get_head_norm(model), get_head(model)
     tmp = emb.weight.clone()
-    tmp_norm, tmp_head = norm.weight.clone(), head.weight.clone()
-    before = q_err(emb)
-    before2 = q_err(head, norm=norm)
+    before = q_err(emb, sz=sz)
 
     H = generate_hadamard_matrix(sz, torch.device("cpu"))
     dim = get_dim(model)
     rotate_embedding(model, H)
-    rotate_head(model, torch.block_diag(*[H for _ in range(dim//sz)]))
-    after = q_err(emb)
-    after2 = q_err(head)
+    after = q_err(emb, sz=sz)
     emb.weight.data = tmp
-    norm.weight.data = tmp_norm
-    head.weight.data = tmp_head
     flags = before > after * 1.01
     # flags = torch.logical_and(before > after, before2 > after2)
     print(before > after)
-    print(before2 > after2)
     print(flags)
     eye = torch.eye(sz, device=H.device, dtype=H.dtype)
     H_list = [H if f else eye for f in flags]
+    return H_list
+
+def block_diag_hadamard_adaptive_v2(model, sz=32):
+    before = calc_quantize_error_v2(model, sz=sz)
+    H = generate_hadamard_matrix(sz, torch.device("cpu"))
+    apply_rotate(model, H)
+    after = calc_quantize_error_v2(model, sz=sz)
+    ratios = []
+    for k in before:
+        r = after[k] / before[k]
+        ratios.append(r)
+    flag = torch.stack(ratios).mean(dim=0) < 1
+    eye = torch.eye(sz, device=H.device, dtype=H.dtype)
+    H_list = [H if f else eye for f in flag]
+    del model
     return H_list
 
 def get_vector_dataset(model):

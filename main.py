@@ -38,6 +38,8 @@ def get_model(model_name):
     kwargs = { "torch_dtype": torch.float16, "device_map": "cpu" }
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(model_name, **kwargs)
+    divide(model)
+    apply_config(model)
     return model, tokenizer
 
 @torch.no_grad()
@@ -75,11 +77,13 @@ def main():
     model_name = args.model
     model, tokenizer = get_model(model_name)
 
-    divide(model)
-    
-    apply_config(model)
     result = calc_quantize_error(model)
-    apply_rotate_optim(model, num_iterations=0)
+    H = block_diag_hadamard_adaptive_v2(model, 32)
+    model, tokenizer = get_model(model_name)
+    # H = generate_hadamard_matrix(32, torch.device("cpu"))
+    apply_rotate(model, H)
+    # apply_rotate_adaptive(model, 32, [False] * 3 + [True] * 29)
+    # apply_rotate_optim(model, num_iterations=0)
     # apply_smooth(model)
     # apply_permute_annealing_swap_only_fast(model)
 
@@ -105,10 +109,11 @@ def main():
     # apply_smooth(model)
 
     after = calc_quantize_error(model)
-    apply_quantize(model)
+    # apply_quantize(model)
     undivide(model)
 
-    result.update({k + "_a": v for k, v in after.items()})
+    # result.update({k + "_a": v for k, v in after.items()})
+    for k in result: result[k] = after[k] / result[k]
     pprint(result)
 
     # pprint(norm_data)
