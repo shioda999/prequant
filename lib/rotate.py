@@ -214,6 +214,7 @@ def block_diag_hadamard_adaptive_v2(model, sz=32):
         r = after[k] / before[k]
         ratios.append(r)
     flag = torch.stack(ratios).sqrt().mean(dim=0) < 1
+    flag = torch.logical_and(flag, after["embed"] > before["embed"])
     eye = torch.eye(sz, device=H.device, dtype=H.dtype)
     H_list = [H if f else eye for f in flag]
     del model
