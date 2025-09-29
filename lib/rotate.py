@@ -225,13 +225,14 @@ def block_diag_hadamard_adaptive_v2(model, sz=32):
 
 @torch.no_grad()
 def block_diag_hadamard_adaptive_v3(model, load_model_fn, sz=32):
+    labels = ["embed", "down"]#, "gate"]
     before = calc_quantize_error_v2(model, sz=sz)
     cpu_dev = torch.device("cpu")
     eye = torch.eye(sz, device=cpu_dev, dtype=torch.float)
     H = generate_hadamard_matrix(sz, cpu_dev)
     H2 = torch.block_diag(*[generate_hadamard_matrix(sz//2, cpu_dev) for _ in range(2)])
     H4 = torch.block_diag(*[generate_hadamard_matrix(sz//4, cpu_dev) for _ in range(4)])
-    Hs = [eye, H, H2, H4]
+    Hs = [eye, H]#, H2, H4]
     # H2 = torch.linalg.qr(H + torch.randn_like(H) / 10)[0]
     # H3 = torch.linalg.qr(H + torch.randn_like(H) / 3)[0]
     # Hs = [eye, H]#, H2, H3]
@@ -239,10 +240,10 @@ def block_diag_hadamard_adaptive_v3(model, load_model_fn, sz=32):
     n_layers = len(get_layers(model))
     for e in Hs[1:]:
         apply_rotate(model, e)
-        after = calc_quantize_error_v2(model, sz=sz)
+        after = calc_quantize_error_v2(model, sz=sz, labels=labels)
         ratios = []
 
-        for k in before:
+        for k in after:
             r = after[k] / before[k]
             # if k == "embed": r *= n_layers
             ratios.append(r)

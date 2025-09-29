@@ -139,12 +139,13 @@ def calc_quantize_error(model, sz=32):
     return result
 
 @torch.no_grad()
-def calc_quantize_error_v2(model, sz=32):
+def calc_quantize_error_v2(model, sz=32, labels=None):
     result = {}
 
     def register(m, label, nbits=4, norm=None, t=False):
-        err = q_err(m, nbits, norm=norm, t=t, sz=sz)
-        result[label] = err
+        if labels is None or any([e in label for e in labels]):
+            err = q_err(m, nbits, norm=norm, t=t, sz=sz)
+            result[label] = err
 
     register(get_embed(model), "embed")
     layers = get_layers(model)
