@@ -1,7 +1,7 @@
 from .hadamard import generate_hadamard_matrix
 from .get_module import *
 from .utils import *
-from .smooth import smooth_vo
+from .smooth import *
 from .permute import permute_vo, get_perm_v2
 import torch
 import gc
@@ -240,6 +240,7 @@ def block_diag_hadamard_adaptive_v3(model, load_model_fn, sz=32):
     n_layers = len(get_layers(model))
     for e in Hs[1:]:
         apply_rotate(model, e)
+        apply_smooth(model)
         after = calc_quantize_error_v2(model, sz=sz, labels=labels)
         ratios = []
 
@@ -261,6 +262,7 @@ def block_diag_hadamard_adaptive_v3(model, load_model_fn, sz=32):
     print(idx)
     H_list = [Hs[i] for i in idx]
     apply_rotate(model, torch.block_diag(*H_list))
+    apply_smooth(model)
     return model
 
 def get_vector_dataset(model):

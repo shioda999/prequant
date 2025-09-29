@@ -98,7 +98,7 @@ def decide_step_size(s, index, chunk_idx, loss_fn, current_loss, init_step_size=
     return loss2
 
 @torch.no_grad() 
-def smooth_fn_(As, Bs, n_iterations=500, a=None, b=None, device=None, chunk_size=32, step_size=0.01):
+def smooth_fn_greedy(As, Bs, n_iterations=500, a=None, b=None, device=None, chunk_size=32, step_size=0.01):
     if device is None: device = get_device()
     s = torch.ones(Bs[0].weight.shape[-1], device=device)
     for A in As: A.to(device)
@@ -144,9 +144,9 @@ def smooth_fn_(As, Bs, n_iterations=500, a=None, b=None, device=None, chunk_size
 def smooth_fn(As, Bs, n_iterations=500, a=None, b=None, device=None, chunk_size=32, step_size=0.01):
     # smooth_fn_(As, Bs, 100, a, b, device, chunk_size, step_size=step_size * 16)
     # smooth_fn_(As, Bs, 100, a, b, device, chunk_size, step_size=step_size * 4)
-    smooth_fn_(As, Bs, n_iterations, a, b, device, chunk_size, step_size=step_size)
-    smooth_fn_(As, Bs, 100, a, b, device, chunk_size, step_size=step_size * 4)
-    smooth_fn_(As, Bs, 100, a, b, device, chunk_size, step_size=step_size)
+    smooth_fn_greedy(As, Bs, n_iterations, a, b, device, chunk_size, step_size=step_size)
+    smooth_fn_greedy(As, Bs, 100, a, b, device, chunk_size, step_size=step_size * 4)
+    smooth_fn_greedy(As, Bs, 100, a, b, device, chunk_size, step_size=step_size)
 
 
 def smooth_qkv(layer, a, b):
