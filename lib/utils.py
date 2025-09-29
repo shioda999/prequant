@@ -170,7 +170,7 @@ def fuse_norm(norm, fcs):
     norm.weight.data = torch.ones_like(norm.weight, dtype=norm.weight.dtype)
 
 @torch.no_grad()
-def _defuse_norm(norm, fcs, p=2):
+def smooth_defuse_norm(norm, fcs, p=2):
     # s = norm.prev_weight.reshape(sz, -1).abs().mean(dim=0)[None].expand((sz, -1)).reshape(-1).sqrt()
     s = torch.concat([normalize(fc.weight.data) for fc in fcs]).reshape(-1, fcs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p).pow(0.5)
     for fc in fcs:
@@ -184,6 +184,7 @@ def safe_divide(numerator, denominator, eps=1e-6):
 
 @torch.no_grad()
 def defuse_norm(norm, fcs):
+    if hasattr(norm, "smooth_defuse"): return smooth_defuse_norm(norm, fcs)
     for fc in fcs:
         fc.weight.data = safe_divide(fc.weight.float(), norm.prev_weight.float()).to(fc.prev_dtype)
         del fc.prev_dtype
@@ -195,6 +196,7 @@ def defuse_norm(norm, fcs):
 def mean_norm(norm, H):
     t = (H.T.abs().pow(2) @ norm.prev_weight.abs().float().reshape(-1, H.shape[0]).T).reshape(-1) * norm.prev_weight.float().sign()
     norm.prev_weight = t
+    norm.smooth_defuse = True
 
 @torch.no_grad()
 def apply_quantize(model):

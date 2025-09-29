@@ -5,6 +5,7 @@ from .smooth import smooth_vo
 from .permute import permute_vo, get_perm_v2
 import torch
 import gc
+import math
 
 @torch.no_grad()
 def rotate(A, H):
@@ -221,6 +222,45 @@ def block_diag_hadamard_adaptive_v2(model, sz=32):
     H_list = [H if f else eye for f in flag]
     del model
     return H_list
+
+@torch.no_grad()
+def block_diag_hadamard_adaptive_v3(model, load_model_fn, sz=32):
+    before = calc_quantize_error_v2(model, sz=sz)
+    cpu_dev = torch.device("cpu")
+    eye = torch.eye(sz, device=cpu_dev, dtype=torch.float)
+    H = generate_hadamard_matrix(sz, cpu_dev)
+    H2 = torch.block_diag(*[generate_hadamard_matrix(sz//2, cpu_dev) for _ in range(2)])
+    H4 = torch.block_diag(*[generate_hadamard_matrix(sz//4, cpu_dev) for _ in range(4)])
+    Hs = [eye, H, H2, H4]
+    # H2 = torch.linalg.qr(H + torch.randn_like(H) / 10)[0]
+    # H3 = torch.linalg.qr(H + torch.randn_like(H) / 3)[0]
+    # Hs = [eye, H]#, H2, H3]
+    metrics = []
+    n_layers = len(get_layers(model))
+    for e in Hs[1:]:
+        apply_rotate(model, e)
+        after = calc_quantize_error_v2(model, sz=sz)
+        ratios = []
+
+        for k in before:
+            r = after[k] / before[k]
+            # if k == "embed": r *= n_layers
+            ratios.append(r)
+            print(k, r)
+        metric = torch.stack(ratios).mean(dim=0)
+        # metric = torch.stack(ratios).sum(dim=0).div(len(ratios) + n_layers - 1)
+        metric = torch.where(after["embed"] < before["embed"], metric, 10.)
+        if len(metrics) == 0: metrics.append(torch.ones_like(metric))
+        metrics.append(metric)
+        del model
+        model = load_model_fn()
+    metrics = torch.stack(metrics)
+    print(metrics)
+    idx = metrics.argmin(dim=0)
+    print(idx)
+    H_list = [Hs[i] for i in idx]
+    apply_rotate(model, torch.block_diag(*H_list))
+    return model
 
 def get_vector_dataset(model):
     D = []
