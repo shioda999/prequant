@@ -78,14 +78,14 @@ def main():
     model, tokenizer = get_model(model_name)
 
     result = calc_quantize_error(model)
-    model = block_diag_hadamard_adaptive_v3(model, lambda: get_model(model_name)[0])
+    # model = block_diag_hadamard_adaptive_v3(model, lambda: get_model(model_name)[0])
     # H = block_diag_hadamard_adaptive_v2(model, 16)
     # model, tokenizer = get_model(model_name)
     # H = generate_hadamard_matrix(32, torch.device("cpu"))
     # apply_rotate(model, H)
     # apply_rotate_adaptive(model, 32, [False] * 3 + [True] * 29)
     # apply_rotate_optim(model, num_iterations=0)
-    # apply_smooth(model)
+    apply_smooth(model)
     # apply_permute_annealing_swap_only_fast(model)
 
     # sz = 32
