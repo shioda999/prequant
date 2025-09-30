@@ -233,4 +233,4 @@ def apply_smooth(model, a=0., b=0.5, device=None):
         smooth_mlp(l, a, b)
         smooth_qkv(l, a, b)
         l.cpu()
-    smooth_head(model, a, b)
+    # smooth_head(model, a, b) # this process impact for embedding layer, so it is disable.
