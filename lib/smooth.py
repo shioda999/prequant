@@ -147,9 +147,9 @@ def smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32):
     for A in As: A.to(device)
     for B in Bs: B.to(device)
     
-    # sを32要素ずつのチャンクに分割
-    num_chunks = (len(r) + chunk_size - 1) // chunk_size
-    chunks = [slice(i * chunk_size, min((i + 1) * chunk_size, len(r))) for i in range(num_chunks)]
+    dim = Bs[0].weight.shape[-1]
+    num_chunks = (dim + chunk_size - 1) // chunk_size
+    chunks = [slice(i * chunk_size, min((i + 1) * chunk_size, dim)) for i in range(num_chunks)]
     
     def compute_loss(s):
         loss = 0
@@ -159,26 +159,26 @@ def smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32):
         for B in Bs: loss += quantization_loss_for_smooth(B.weight / s, scale=s*sa).reshape(-1, B.weight.shape[-1]).sum(dim=0)
         return loss.reshape(num_chunks, -1).sum(dim=1)
         
-    # 各チャンクの初期損失を計算
-    losses = compute_loss(r.pow(0))
-    initial_loss = losses.sum()
-    p = torch.zeros((num_chunks,))
-    for i in torch.arange(0, 1, 0.05):
-        new_losses = compute_loss(r.pow(i))
-        p = torch.where(new_losses < losses, i, p)
-        losses = torch.minimum(new_losses, losses)
+    def calc_minimum_loss(r):
+        loss = compute_loss(r.pow(0))
+        p = torch.zeros((num_chunks,))
+        for i in torch.arange(0, 1, 0.05):
+            new_loss = compute_loss(r.pow(i))
+            p = torch.where(new_loss < loss, i, p)
+            loss = torch.minimum(new_loss, loss)
+        return r.pow(p[:,None].expand(-1, chunk_size).reshape(-1)), loss
 
     p = 2
     r = 1 / torch.concat([normalize(A.weight)[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(p).mean(dim=1).pow(1/p)
-    # r = torch.concat([normalize(B.weight) for B in Bs]).reshape(-1, Bs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p)
+    r2 = torch.concat([normalize(B.weight) for B in Bs]).reshape(-1, Bs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p)
     
-    print(p)
-    s = r.pow(p[:,None].expand(-1, chunk_size).reshape(-1))
+    s, loss = calc_minimum_loss(r)
+    # s2, loss2 = calc_minimum_loss(r2)
+
+    # s  = torch.where((loss < loss2)[:,None].expand(-1, chunk_size).reshape(-1), s, s2)
     s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
     for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
     for B in Bs: B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
-    new_losses = compute_loss(r.pow(0))
-    print("ratio", new_losses.sum() / initial_loss, losses.sum() / initial_loss)
     for A in As: A.cpu()
     for B in Bs: B.cpu()
 
