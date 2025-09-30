@@ -185,7 +185,7 @@ def smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32):
 @torch.no_grad() 
 def smooth_fn(As, Bs, n_iterations=500, a=None, b=None, device=None, chunk_size=32, step_size=0.01):
     smooth_fn_pow(As, Bs, a, b, device, chunk_size)
-    # smooth_fn_greedy(As, Bs, n_iterations, a, b, device, chunk_size, step_size=step_size)
+    smooth_fn_greedy(As, Bs, n_iterations, a, b, device, chunk_size, step_size=step_size)
     # smooth_fn_greedy(As, Bs, 100, a, b, device, chunk_size, step_size=step_size * 4)
     # smooth_fn_greedy(As, Bs, 100, a, b, device, chunk_size, step_size=step_size)
 
@@ -215,7 +215,7 @@ def smooth_vo(layer, a=0.5, b=0.5, **kwargs):
 def smooth_mlp(layer, a, b, **kwargs):
     norm = get_post_norm(layer)
     up, gate, down = get_up(layer), get_gate(layer), get_down(layer)
-    smooth_fn([up], [down], a=a, b=b, **kwargs)
+    # smooth_fn([up], [down], a=a, b=b, **kwargs)
     smooth_fn([norm], [up, gate], a=a, b=b, **kwargs)
 
 def smooth_head(model, a, b, **kwargs):
