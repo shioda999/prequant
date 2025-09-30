@@ -112,7 +112,7 @@ def smooth_fn_greedy(As, Bs, n_iterations=500, a=None, b=None, device=None, chun
     num_chunks = (len(s) + chunk_size - 1) // chunk_size
     chunks = [slice(i * chunk_size, min((i + 1) * chunk_size, len(s))) for i in range(num_chunks)]
     
-    def compute_loss(s):
+    def compute_loss():
         loss = 0
         sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
         if len(As[0].weight.shape) > 1:
