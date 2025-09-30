@@ -215,7 +215,7 @@ def smooth_vo(layer, a=0.5, b=0.5):
 def smooth_mlp(layer, a, b):
     norm = get_post_norm(layer)
     up, gate, down = get_up(layer), get_gate(layer), get_down(layer)
-    smooth_fn([up], [down], a=a, b=b)
+    # smooth_fn([up], [down], a=a, b=b)
     smooth_fn([norm], [up, gate], a=a, b=b)
 
 def smooth_head(model, a, b):
