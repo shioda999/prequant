@@ -173,9 +173,9 @@ def smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32):
     r2 = torch.concat([normalize(B.weight) for B in Bs]).reshape(-1, Bs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p)
     
     s, loss = calc_minimum_loss(r)
-    # s2, loss2 = calc_minimum_loss(r2)
+    s2, loss2 = calc_minimum_loss(r2)
 
-    # s  = torch.where((loss < loss2)[:,None].expand(-1, chunk_size).reshape(-1), s, s2)
+    s  = torch.where((loss < loss2)[:,None].expand(-1, chunk_size).reshape(-1), s, s2)
     s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
     for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
     for B in Bs: B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
@@ -190,13 +190,13 @@ def smooth_fn(As, Bs, n_iterations=500, a=None, b=None, device=None, chunk_size=
     # smooth_fn_greedy(As, Bs, 100, a, b, device, chunk_size, step_size=step_size)
 
 
-def smooth_qkv(layer, a, b):
+def smooth_qkv(layer, a, b, **kwargs):
     norm = get_pre_norm(layer)
     qkv = [get_q(layer), get_k(layer), get_v(layer)]
-    smooth_fn([norm], qkv, a=a, b=b)
+    smooth_fn([norm], qkv, a=a, b=b, **kwargs)
 
 @torch.no_grad()
-def smooth_vo(layer, a=0.5, b=0.5):
+def smooth_vo(layer, a=0.5, b=0.5, **kwargs):
     head_dim = get_head_dim(layer)
     v, o = get_v(layer), get_o(layer)
     w_o, w_v = o.weight.data, v.weight.data
@@ -212,26 +212,26 @@ def smooth_vo(layer, a=0.5, b=0.5):
     v.weight.data = v.weight.div(s[:,None]).to(w_v.dtype)
     o.weight.data = w_o.mul(s).reshape(-1,ratio,w_o.shape[1]//head_dim,head_dim).transpose(1,2).reshape(tmp).to(w_o.dtype)
 
-def smooth_mlp(layer, a, b):
+def smooth_mlp(layer, a, b, **kwargs):
     norm = get_post_norm(layer)
     up, gate, down = get_up(layer), get_gate(layer), get_down(layer)
-    # smooth_fn([up], [down], a=a, b=b)
-    smooth_fn([norm], [up, gate], a=a, b=b)
+    # smooth_fn([up], [down], a=a, b=b, **kwargs)
+    smooth_fn([norm], [up, gate], a=a, b=b, **kwargs)
 
-def smooth_head(model, a, b):
+def smooth_head(model, a, b, **kwargs):
     norm = get_head_norm(model)
     head = get_head(model)
-    smooth_fn([norm], [head], a=a, b=b)
+    smooth_fn([norm], [head], a=a, b=b, **kwargs)
 
-def apply_smooth(model, a=0., b=0.5, device=None):
+def apply_smooth(model, a=0., b=0.5, device=None, **kwargs):
     device = get_device()
     model.cpu()
     layers = get_layers(model)
     for l in layers:
         l.to(device)
         # smooth_vo(l)
-        smooth_mlp(l, a, b)
-        smooth_qkv(l, a, b)
+        smooth_mlp(l, a, b, **kwargs)
+        smooth_qkv(l, a, b, **kwargs)
         l.cpu()
     if get_embed(model).weight is not get_head(model).weight:
-        smooth_head(model, a, b)
+        smooth_head(model, a, b, **kwargs)
