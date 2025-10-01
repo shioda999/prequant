@@ -21,8 +21,8 @@ def str2bool(s):
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', default='Qwen/Qwen3-0.6B')
-    # parser.add_argument('--model', default='Qwen/Qwen3-1.7B')
+    # parser.add_argument('--model', default='Qwen/Qwen3-0.6B')
+    parser.add_argument('--model', default='Qwen/Qwen3-1.7B')
     # parser.add_argument('--model', default='Qwen/Qwen3-4B-Instruct-2507')
     # parser.add_argument('--model', default='meta-llama/Llama-3.2-1B-Instruct')
     # parser.add_argument('--model', default='mistralai/Mistral-7B-Instruct-v0.3')
@@ -78,29 +78,8 @@ def main():
     model, tokenizer = get_model(model_name)
 
     result = calc_quantize_error(model)
-    # model = block_diag_hadamard_adaptive_v3(model, lambda: get_model(model_name)[0])
-    # H = block_diag_hadamard_adaptive_v2(model, 16)
-    # model, tokenizer = get_model(model_name)
-    # H = generate_hadamard_matrix(32, torch.device("cpu"))
-    # apply_rotate(model, H)
-    # apply_rotate_adaptive(model, 32, [False] * 3 + [True] * 29)
-    # apply_rotate_optim(model, num_iterations=0)
+    model = block_diag_hadamard_adaptive_v3(model, lambda: get_model(model_name)[0])
     apply_smooth(model)
-    # apply_permute_annealing_swap_only_fast(model)
-
-    # sz = 32
-    # permute = False
-    # labels = ["embed", "head"]
-    # if permute: apply_global_permute(model)
-    # l1 = calc_quantize_error_v2(model, labels, sz=sz)
-    # apply_rotate(model, sz=sz)
-    # l2 = calc_quantize_error_v2(model, labels, sz=sz)
-    # flags = l1 >= l2
-    # print(flags)
-    # print(l1)
-    # print(l2)
-    # del model, tokenizer
-    # model, tokenizer = get_model(model_name)
 
     # apply_config(model)
     # if permute: apply_global_permute(model)

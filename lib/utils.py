@@ -101,23 +101,28 @@ def quantize(w, nbits=4, group_sz=32):
     return w_q, s
 
 @torch.no_grad()
-def q_err(m, nbits=4, sz=32, norm=None, t=False):
-    w = m.weight
+def q_err(m, nbits=4, sz=32, scale=None, t=False, H=None, o_shrink=True):
+    w = m.weight if hasattr(m, "weight") else m
     w_q, s = quantize(w, nbits)
     delta = w_q - w
-    if norm is not None:
-        delta.mul_(norm.weight)
-    if t is False:
-        return delta.reshape(w.shape[0],-1, sz).float().pow(2).mean(dim=-1).mean(dim=0)
+    if scale is not None:
+        delta.mul_(scale.weight if hasattr(scale, "weight") else scale)
+    if t is True:
+        delta = delta.T
+    if H is not None:
+        delta = (delta.reshape(-1, H.shape[1]).float() @ H.T).reshape(delta.shape)
+    if o_shrink:
+        return delta.reshape(delta.shape[0],-1, sz).float().pow(2).mean(dim=-1).mean(dim=0)
     else:
-        return delta.reshape(sz, -1, w.shape[-1]).float().pow(2).mean(dim=-1).mean(dim=0)
+        return delta.float().pow(2).mean(dim=0)
 
 @torch.no_grad()
-def calc_quantize_error(model, sz=32):
+def calc_quantize_error(model, sz=32, H=None):
+    if H is None and hasattr(model, "g_rotate_mat"): H = model.g_rotate_mat
     result = {"!SUM": 0}
 
     def register(m, labels, nbits=4, norm=None, t=False):
-        err = q_err(m, nbits, norm=norm, t=t, sz=sz)
+        err = q_err(m, nbits, scale=norm, t=t, sz=sz, H=H)
         result["!SUM"] += err.sum().item()
         for e in labels:
             if e not in result: result[e] = err.sum().item()
@@ -139,12 +144,13 @@ def calc_quantize_error(model, sz=32):
     return result
 
 @torch.no_grad()
-def calc_quantize_error_v2(model, sz=32, labels=None):
+def calc_quantize_error_v2(model, sz=32, labels=None, H=None):
     result = {}
+    if H is None and hasattr(model, "g_rotate_mat"): H = model.g_rotate_mat
 
     def register(m, label, nbits=4, norm=None, t=False):
         if labels is None or any([e in label for e in labels]):
-            err = q_err(m, nbits, norm=norm, t=t, sz=sz)
+            err = q_err(m, nbits, scale=norm, t=t, sz=sz, H=H)
             result[label] = err
 
     register(get_embed(model), "embed")

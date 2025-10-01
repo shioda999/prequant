@@ -13,7 +13,7 @@ def _smooth_fn(As, Bs, p=2, a=0., b=0.5):
     for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
     for B in Bs: B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
 
-def quantization_loss_for_smooth(w, group_sz=32, nbits=4, scale=None):
+def __quantization_loss_for_smooth(w, group_sz=32, nbits=4, scale=None):
     shape = w.shape
     w = w.reshape(-1, group_sz)
     Qp, Qn = 2 ** (nbits - 1) - 1, -2 ** (nbits - 1)
@@ -116,8 +116,8 @@ def smooth_fn_greedy(As, Bs, n_iterations=500, a=None, b=None, device=None, chun
         loss = 0
         sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
         if len(As[0].weight.shape) > 1:
-            for A in As: loss += quantization_loss_for_smooth(A.weight * s[:,None], scale=1/s[:,None]).reshape(A.weight.shape[0],-1).sum(dim=1)
-        for B in Bs: loss += quantization_loss_for_smooth(B.weight / s, scale=s*sa).reshape(-1, B.weight.shape[-1]).sum(dim=0)
+            for A in As: loss += q_err(A.weight * s[:,None], scale=1/s[:,None]).reshape(A.weight.shape[0],-1).sum(dim=1)
+        for B in Bs: loss += q_err(B.weight / s, scale=s*sa).reshape(-1, B.weight.shape[-1]).sum(dim=0)
         return loss.reshape(num_chunks, -1).sum(dim=1)
         
     # 各チャンクの初期損失を計算
@@ -155,8 +155,8 @@ def smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32):
         loss = 0
         sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
         if len(As[0].weight.shape) > 1:
-            for A in As: loss += quantization_loss_for_smooth(A.weight * s[:,None], scale=1/s[:,None]).reshape(A.weight.shape[0],-1).sum(dim=1)
-        for B in Bs: loss += quantization_loss_for_smooth(B.weight / s, scale=s*sa).reshape(-1, B.weight.shape[-1]).sum(dim=0)
+            for A in As: loss += q_err(A.weight * s[:,None], scale=1/s[:,None], o_shrink=False).reshape(A.weight.shape[0],-1).sum(dim=1)
+        for B in Bs: loss += q_err(B.weight / s, scale=s*sa, o_shrink=False).reshape(-1, B.weight.shape[-1]).sum(dim=0)
         return loss.reshape(num_chunks, -1).sum(dim=1)
         
     def calc_minimum_loss(r):
@@ -176,6 +176,7 @@ def smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32):
     s2, loss2 = calc_minimum_loss(r2)
 
     s  = torch.where((loss < loss2)[:,None].expand(-1, chunk_size).reshape(-1), s, s2)
+    print(s)
     s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
     for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
     for B in Bs: B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
@@ -183,12 +184,14 @@ def smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32):
     for B in Bs: B.cpu()
 
 @torch.no_grad() 
-def smooth_fn(As, Bs, n_iterations=500, a=None, b=None, device=None, chunk_size=32, step_size=0.01):
-    # smooth_fn_pow(As, Bs, a, b, device, chunk_size)
-    smooth_fn_greedy(As, Bs, n_iterations, a, b, device, chunk_size, step_size=step_size)
+def smooth_fn(As, Bs, n_iterations=500, a=None, b=None, device=None, chunk_size=32, step_size=0.01, mode="pow", **kwargs):
+    if "pow" in mode:
+        smooth_fn_pow(As, Bs, a, b, device, chunk_size)
+    if "greedy" in mode:
+        smooth_fn_greedy(As, Bs, n_iterations, a, b, device, chunk_size, step_size=step_size)
     # smooth_fn_greedy(As, Bs, 100, a, b, device, chunk_size, step_size=step_size * 4)
     # smooth_fn_greedy(As, Bs, 100, a, b, device, chunk_size, step_size=step_size)
-    smooth_fn_pow(As, Bs, a, b, device, chunk_size)
+    # smooth_fn_pow(As, Bs, a, b, device, chunk_size)
 
 def smooth_qkv(layer, a, b, **kwargs):
     norm = get_pre_norm(layer)

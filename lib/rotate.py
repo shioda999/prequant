@@ -145,6 +145,7 @@ def _apply_rotate(model, sz=32):
 def apply_rotate(model, H):
     if isinstance(H, list):
         H = torch.block_diag(*H)
+    model.g_rotate_mat = H.clone()
     device = next(model.parameters()).device
     model.cpu()
     dim = get_dim(model)
@@ -225,7 +226,7 @@ def block_diag_hadamard_adaptive_v2(model, sz=32):
 
 @torch.no_grad()
 def block_diag_hadamard_adaptive_v3(model, load_model_fn, sz=32):
-    labels = ["embed", ".o", "down"]
+    labels = None#["embed", ".o", "down"]
     before = calc_quantize_error_v2(model, sz=sz)
     cpu_dev = torch.device("cpu")
     eye = torch.eye(sz, device=cpu_dev, dtype=torch.float)
@@ -247,16 +248,16 @@ def block_diag_hadamard_adaptive_v3(model, load_model_fn, sz=32):
             r = after[k] / before[k]
             # if k == "embed": r *= n_layers
             ratios.append(r)
-            print(k, r)
+            # print(k, r)
         metric = torch.stack(ratios).mean(dim=0)
         # metric = torch.stack(ratios).sum(dim=0).div(len(ratios) + n_layers - 1)
-        metric = torch.where(after["embed"] < before["embed"], metric, 10.)
+        # metric = torch.where(after["embed"] < before["embed"], metric, 10.)
         if len(metrics) == 0: metrics.append(torch.ones_like(metric))
         metrics.append(metric)
         del model
         model = load_model_fn()
     metrics = torch.stack(metrics)
-    print(metrics)
+    # print(metrics)
     idx = metrics.argmin(dim=0)
     print(idx)
     H_list = [Hs[i] for i in idx]
