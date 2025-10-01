@@ -79,6 +79,7 @@ def main():
 
     result = calc_quantize_error(model)
     model = block_diag_hadamard_adaptive_v3(model, lambda: get_model(model_name)[0])
+    # apply_rotate(model)
     # apply_smooth(model)
 
     # apply_config(model)

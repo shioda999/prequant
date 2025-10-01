@@ -142,7 +142,8 @@ def _apply_rotate(model, sz=32):
     rotate_head(model, H.cpu())
 
 @torch.no_grad()
-def apply_rotate(model, H):
+def apply_rotate(model, H=None):
+    if H is None: H = generate_hadamard_matrix(32, torch.device("cpu"))
     if isinstance(H, list):
         H = torch.block_diag(*H)
     model.g_rotate_mat = H.clone()
@@ -233,7 +234,7 @@ def block_diag_hadamard_adaptive_v3(model, load_model_fn, sz=32):
     H = generate_hadamard_matrix(sz, cpu_dev)
     H2 = torch.block_diag(*[generate_hadamard_matrix(sz//2, cpu_dev) for _ in range(2)])
     H4 = torch.block_diag(*[generate_hadamard_matrix(sz//4, cpu_dev) for _ in range(4)])
-    Hs = [eye, H, H2, H4]
+    Hs = [eye, H]#, H2, H4]
     # H2 = torch.linalg.qr(H + torch.randn_like(H) / 10)[0]
     # H3 = torch.linalg.qr(H + torch.randn_like(H) / 3)[0]
     # Hs = [eye, H]#, H2, H3]
@@ -251,7 +252,7 @@ def block_diag_hadamard_adaptive_v3(model, load_model_fn, sz=32):
             # print(k, r)
         metric = torch.stack(ratios).mean(dim=0)
         # metric = torch.stack(ratios).sum(dim=0).div(len(ratios) + n_layers - 1)
-        metric = torch.where(after["embed"] < before["embed"], metric, 10.)
+        # metric = torch.where(after["embed"] < before["embed"], metric, 10.)
         if len(metrics) == 0: metrics.append(torch.ones_like(metric))
         metrics.append(metric)
         del model
