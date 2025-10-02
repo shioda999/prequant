@@ -110,7 +110,7 @@ def q_err(m, nbits=4, sz=32, scale=None, t=False, H=None, o_shrink=True):
     if t is True:
         delta = delta.T
     if H is not None:
-        delta = (delta.reshape(-1, H.shape[1]).float() @ H.T).reshape(delta.shape)
+        delta = (delta.reshape(-1, H.shape[0]).float() @ H.T).reshape(delta.shape)
     if o_shrink:
         return delta.reshape(delta.shape[0],-1, sz).float().pow(2).mean(dim=-1).mean(dim=0)
     else:
@@ -201,7 +201,8 @@ def defuse_norm(norm, fcs):
 
 @torch.no_grad()
 def mean_norm(norm, H):
-    t = (H.T.abs().pow(2) @ norm.prev_weight.abs().float().reshape(-1, H.shape[0]).T).reshape(-1) * norm.prev_weight.float().sign()
+    # t = torch.ones_like(norm.prev_weight)
+    t = (norm.prev_weight.abs().float().reshape(-1, H.shape[0]) @ H.pow(2)).reshape(-1) * norm.prev_weight.float().sign()
     norm.prev_weight = t
     # norm.smooth_defuse = True
 

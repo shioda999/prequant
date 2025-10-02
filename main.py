@@ -77,8 +77,35 @@ def main():
     model_name = args.model
     model, tokenizer = get_model(model_name)
 
+    H = generate_hadamard_matrix(32, get_device())
+    # H = torch.block_diag(*[H for _ in range(get_dim(model) // 32)])
+    layer = get_layers(model)[0]
+    w_ = get_q(layer).weight.clone()
+    rotate_qkv(layer, H)
+    # rotate_qkv(layer, H.T)
+    w0 = get_q(layer).weight
+
+    model, tokenizer = get_model(model_name)
+
+    H = generate_hadamard_matrix(32, get_device())
+    H = torch.block_diag(*[H for _ in range(get_dim(model) // 32)])
+    layer = get_layers(model)[0]
+    rotate_qkv(layer, H)
+    # rotate_qkv(layer, H.T)
+    w1 = get_q(layer).weight
+
+    print(torch.allclose(w0, w1))
+    print(w_)
+    print(w0)
+    print(w1)
+    exit(0)
+
     result = calc_quantize_error(model)
-    model = block_diag_hadamard_adaptive_v3(model, lambda: get_model(model_name)[0])
+
+    # apply_rotate(model)
+    apply_rotate_adaptive(model, flags=[True] * (get_dim(model) // 32))
+
+    # model = block_diag_hadamard_adaptive_v3(model, lambda: get_model(model_name)[0])
     # apply_rotate(model)
     # apply_smooth(model)
 
@@ -122,3 +149,12 @@ if __name__ == '__main__':
 # phi4
 
 # 
+# 'down': 0.9604782469845408,
+#  'embed': 1.0018655489301642,
+#  'gate': 0.7728925018906754,
+#  'head': 0.9854588099636856,
+#  'k': 0.794129571202559,
+#  'o': 0.9937678923987807,
+#  'q': 0.663806532775606,
+#  'up': 0.8062668058111273,
+#  'v': 0.7068411286631187}
