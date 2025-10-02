@@ -201,8 +201,8 @@ def defuse_norm(norm, fcs):
 
 @torch.no_grad()
 def mean_norm(norm, H):
-    # t = torch.ones_like(norm.prev_weight)
-    t = (norm.prev_weight.abs().float().reshape(-1, H.shape[0]) @ H.pow(2)).reshape(-1) * norm.prev_weight.float().sign()
+    t = torch.ones_like(norm.prev_weight)
+    # t = (norm.prev_weight.abs().float().reshape(-1, H.shape[0]) @ H.pow(2)).reshape(-1) * norm.prev_weight.float().sign()
     norm.prev_weight = t
     # norm.smooth_defuse = True
 
