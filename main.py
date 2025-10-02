@@ -77,29 +77,6 @@ def main():
     model_name = args.model
     model, tokenizer = get_model(model_name)
 
-    H = generate_hadamard_matrix(32, get_device())
-    # H = torch.block_diag(*[H for _ in range(get_dim(model) // 32)])
-    layer = get_layers(model)[0]
-    w_ = get_q(layer).weight.clone()
-    rotate_qkv(layer, H)
-    # rotate_qkv(layer, H.T)
-    w0 = get_q(layer).weight
-
-    model, tokenizer = get_model(model_name)
-
-    H = generate_hadamard_matrix(32, get_device())
-    H = torch.block_diag(*[H for _ in range(get_dim(model) // 32)])
-    layer = get_layers(model)[0]
-    rotate_qkv(layer, H)
-    # rotate_qkv(layer, H.T)
-    w1 = get_q(layer).weight
-
-    print(torch.allclose(w0, w1))
-    print(w_)
-    print(w0)
-    print(w1)
-    exit(0)
-
     result = calc_quantize_error(model)
 
     # apply_rotate(model)
