@@ -201,7 +201,7 @@ def defuse_norm(norm, fcs):
 
 @torch.no_grad()
 def mean_norm(norm, H):
-    t = torch.where((H - torch.eye(H.shape[0], device=H.device)).abs().sum(dim=0) == 0, norm.prev_weight, 1.)
+    t = torch.where((H - torch.eye(H.shape[0], device=H.device)).abs().sum(dim=0)[None].expand(norm.prev_weight.shape[0] // H.shape[0], -1).reshape(-1) == 0, norm.prev_weight, 1.)
     # t = torch.ones_like(norm.prev_weight)
     # t = (norm.prev_weight.abs().float().reshape(-1, H.shape[0]) @ H.abs()).reshape(-1).pow(0.25)# * norm.prev_weight.float().sign()
     norm.prev_weight = t
