@@ -113,7 +113,7 @@ def smooth_fn_greedy(As, Bs, n_iterations=500, a=None, b=None, device=None, chun
     num_chunks = (len(s) + chunk_size - 1) // chunk_size
     chunks = [slice(i * chunk_size, min((i + 1) * chunk_size, len(s))) for i in range(num_chunks)]
     
-    def compute_loss():
+    def compute_loss(s):
         loss = 0
         sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
         if len(As[0].weight.shape) > 1:
@@ -122,14 +122,14 @@ def smooth_fn_greedy(As, Bs, n_iterations=500, a=None, b=None, device=None, chun
         return loss.reshape(num_chunks, -1).sum(dim=1)
         
     # 各チャンクの初期損失を計算
-    losses = compute_loss()
+    losses = compute_loss(s)
     initial_loss = losses.sum()
 
     for i in range(n_iterations):
         prev_s = s.clone()
         idx = torch.randint(0, chunk_size, (num_chunks,), device=device) + torch.arange(num_chunks, device=device) * chunk_size
         s[idx] += torch.where(torch.rand((num_chunks,), device=device) > .5, step_size, -step_size)
-        new_losses = compute_loss()
+        new_losses = compute_loss(s)
         s = torch.where((new_losses < losses)[:,None].expand(-1, chunk_size).reshape(-1), s, prev_s)
         losses = torch.minimum(new_losses, losses)
 
