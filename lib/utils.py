@@ -92,12 +92,22 @@ class ConcatModule:
         return y
 
 @torch.no_grad()
-def quantize(w, nbits=4, group_sz=32):
+def _quantize(w, nbits=4, group_sz=32):
     shape, dtype = w.shape, w.dtype
     w = w.reshape(-1, group_sz).float()
     Qp, Qn = 2 ** (nbits - 1) - 1, -2 ** (nbits - 1)
     s = torch.maximum(w.max(dim=1, keepdim=True)[0] / Qp, w.min(dim=1, keepdim=True)[0] / Qn)
     w_q = w.div(s).round_().clamp_(Qn, Qp).mul_(s).reshape(shape).to(dtype)
+    return w_q, s
+
+@torch.no_grad()
+def quantize(w, nbits=4, group_sz=32):
+    shape, dtype = w.shape, w.dtype
+    w = w.reshape(-1, group_sz).float()
+    Qp = 2 ** nbits - 1
+    min_v = w.min(dim=1, keepdim=True)[0]
+    s = (w.max(dim=1, keepdim=True)[0] - min_v) / Qp
+    w_q = w.sub(min_v).div(s).round_().clamp_(0, Qp).add(min_v).mul_(s).reshape(shape).to(dtype)
     return w_q, s
 
 @torch.no_grad()
