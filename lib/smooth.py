@@ -103,6 +103,7 @@ def smooth_fn_greedy(As, Bs, n_iterations=500, a=None, b=None, device=None, chun
     s = torch.ones(Bs[0].weight.shape[-1], device=device)
     for A in As: A.to(device)
     for B in Bs: B.to(device)
+    H = As[0].rot_mat.to(device) if hasattr(As[0], "rot_mat") else None
     
     # アニーリングパラメータ
     initial_temp = 0.0
@@ -116,8 +117,8 @@ def smooth_fn_greedy(As, Bs, n_iterations=500, a=None, b=None, device=None, chun
         loss = 0
         sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
         if len(As[0].weight.shape) > 1:
-            for A in As: loss += q_err(A.weight * s[:,None], scale=1/s[:,None], o_shrink=False).reshape(A.weight.shape[0],-1).sum(dim=1)
-        for B in Bs: loss += q_err(B.weight / s, scale=s*sa, o_shrink=False).reshape(-1, B.weight.shape[-1]).sum(dim=0)
+            for A in As: loss += q_err(A.weight * s[:,None], scale=1/s[:,None], o_shrink=False, H=H).reshape(A.weight.shape[0],-1).sum(dim=1)
+        for B in Bs: loss += q_err(B.weight / s, scale=s*sa, o_shrink=False, H=H).reshape(-1, B.weight.shape[-1]).sum(dim=0)
         return loss.reshape(num_chunks, -1).sum(dim=1)
         
     # 各チャンクの初期損失を計算
@@ -150,13 +151,14 @@ def smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32):
     dim = Bs[0].weight.shape[-1]
     num_chunks = (dim + chunk_size - 1) // chunk_size
     chunks = [slice(i * chunk_size, min((i + 1) * chunk_size, dim)) for i in range(num_chunks)]
+    H = As[0].rot_mat.to(device) if hasattr(As[0], "rot_mat") else None
     
     def compute_loss(s):
         loss = 0
         sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
         if len(As[0].weight.shape) > 1:
-            for A in As: loss += q_err(A.weight * s[:,None], scale=1/s[:,None], o_shrink=False).reshape(A.weight.shape[0],-1).sum(dim=1)
-        for B in Bs: loss += q_err(B.weight / s, scale=s*sa, o_shrink=False).reshape(-1, B.weight.shape[-1]).sum(dim=0)
+            for A in As: loss += q_err(A.weight * s[:,None], scale=1/s[:,None], o_shrink=False, H=H).reshape(A.weight.shape[0],-1).sum(dim=1)
+        for B in Bs: loss += q_err(B.weight / s, scale=s*sa, o_shrink=False, H=H).reshape(-1, B.weight.shape[-1]).sum(dim=0)
         return loss.reshape(num_chunks, -1).sum(dim=1)
         
     def calc_minimum_loss(r):
