@@ -239,7 +239,7 @@ def block_diag_hadamard_adaptive_v3(model, load_model_fn, sz=32):
         # metric = torch.stack(ratios).mean(dim=0)
         metric = torch.stack(ratios).sum(dim=0).div(len(ratios) + c_embed_loss - 1)
         # metric = torch.where(after["embed"] < before["embed"], metric, 10.)
-        if len(metrics) == 0: metrics.append(torch.ones_like(metric) * 1.05)
+        if len(metrics) == 0: metrics.append(torch.ones_like(metric) * 1.0)
         metrics.append(metric)
         del model
         model = load_model_fn()

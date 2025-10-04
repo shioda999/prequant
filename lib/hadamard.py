@@ -11,8 +11,8 @@ def _generate_hadamard_matrix(n, device):
     return torch.tensor(H, device=device).float()
 
 def generate_hadamard_matrix(n, device):
-    # if n == 32:
-    #     return torch.block_diag(get_had12(), get_had20())
+    if n == 32:
+        return torch.block_diag(get_had12(), get_had20())
     k = 1
     m = []
     while n > 0:
