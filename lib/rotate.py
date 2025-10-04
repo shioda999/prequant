@@ -159,6 +159,10 @@ def apply_rotate_adaptive(model, sz=32, flags=None, device=None):
     apply_rotate(model, H)
 
 @torch.no_grad()
+def apply_rotate_permute(model, sz=32):
+    pass
+
+@torch.no_grad()
 def apply_rotate_vo(model, device=None):
     if device is None: device = get_device()
     model.cpu()
@@ -208,7 +212,7 @@ def block_diag_hadamard_adaptive_v2(model, sz=32):
 
 @torch.no_grad()
 def block_diag_hadamard_adaptive_v3(model, load_model_fn, sz=32):
-    labels = None#["embed", ".o", "down"]
+    labels = ["head", "embed"]#["embed", ".o", "down"]
     before = calc_quantize_error_v2(model, sz=sz)
     cpu_dev = torch.device("cpu")
     eye = torch.eye(sz, device=cpu_dev, dtype=torch.float)
@@ -221,6 +225,7 @@ def block_diag_hadamard_adaptive_v3(model, load_model_fn, sz=32):
     # Hs = [eye, H]#, H2, H3]
     metrics = []
     n_layers = len(get_layers(model))
+    c_embed_loss = 1#n_layers * 10
     for e in Hs[1:]:
         apply_rotate(model, e)
         after = calc_quantize_error_v2(model, sz=sz, labels=labels)
@@ -228,13 +233,13 @@ def block_diag_hadamard_adaptive_v3(model, load_model_fn, sz=32):
 
         for k in after:
             r = after[k] / before[k]
-            if k == "embed": r *= n_layers * 10
+            if k == "embed": r *= c_embed_loss
             ratios.append(r)
-            # print(k, r)
+            print(k, r)
         # metric = torch.stack(ratios).mean(dim=0)
-        metric = torch.stack(ratios).sum(dim=0).div(len(ratios) + n_layers * 10 - 1)
-        metric = torch.where(after["embed"] < before["embed"], metric, 10.)
-        if len(metrics) == 0: metrics.append(torch.ones_like(metric))
+        metric = torch.stack(ratios).sum(dim=0).div(len(ratios) + c_embed_loss - 1)
+        # metric = torch.where(after["embed"] < before["embed"], metric, 10.)
+        if len(metrics) == 0: metrics.append(torch.ones_like(metric) * 1.05)
         metrics.append(metric)
         del model
         model = load_model_fn()

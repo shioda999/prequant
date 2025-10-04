@@ -107,7 +107,7 @@ def quantize(w, nbits=4, group_sz=32):
     Qp = 2 ** nbits - 1
     min_v = w.min(dim=1, keepdim=True)[0]
     s = (w.max(dim=1, keepdim=True)[0] - min_v) / Qp
-    w_q = w.sub(min_v).div(s).round_().clamp_(0, Qp).add(min_v).mul_(s).reshape(shape).to(dtype)
+    w_q = w.sub(min_v).div(s).round_().clamp_(0, Qp).mul_(s).add_(min_v).reshape(shape).to(dtype)
     return w_q, s
 
 @torch.no_grad()

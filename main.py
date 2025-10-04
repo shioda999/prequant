@@ -21,8 +21,8 @@ def str2bool(s):
 
 def get_args():
     parser = argparse.ArgumentParser()
-    # parser.add_argument('--model', default='Qwen/Qwen3-0.6B')
-    parser.add_argument('--model', default='Qwen/Qwen3-1.7B')
+    parser.add_argument('--model', default='Qwen/Qwen3-0.6B')
+    # parser.add_argument('--model', default='Qwen/Qwen3-1.7B')
     # parser.add_argument('--model', default='Qwen/Qwen3-4B-Instruct-2507')
     # parser.add_argument('--model', default='meta-llama/Llama-3.2-1B-Instruct')
     # parser.add_argument('--model', default='mistralai/Mistral-7B-Instruct-v0.3')
@@ -82,7 +82,7 @@ def main():
     # apply_rotate(model)
     # apply_rotate_adaptive(model, flags=[True] * (get_dim(model) // 32))
 
-    # model = block_diag_hadamard_adaptive_v3(model, lambda: get_model(model_name)[0])
+    model = block_diag_hadamard_adaptive_v3(model, lambda: get_model(model_name)[0])
     # apply_rotate(model)
     apply_smooth(model)
 
