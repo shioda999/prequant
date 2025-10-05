@@ -162,11 +162,7 @@ def calc_quantize_error_v2(model, sz=32, labels=None, H=None):
 
     def register(m, label, nbits=4, norm=None, t=False):
         if labels is None or any([e in label for e in labels]):
-            if hasattr(m, "act_scale"):
-                scale = m.act_scale.to(m.weight.device)
-                err = q_err(m, nbits, scale=scale, t=t, sz=sz, H=H)
-            else:
-                err = q_err(m, nbits, scale=norm, t=t, sz=sz, H=H)
+            err = q_err(m, nbits, scale=norm, t=t, sz=sz, H=H)
             result[label] = err
 
     register(get_embed(model), "embed")
