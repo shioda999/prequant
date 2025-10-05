@@ -101,20 +101,19 @@ def _quantize(w, nbits=4, group_sz=32):
     w_q = w.div(s).round_().clamp_(Qn, Qp).mul_(s).reshape(shape).to(dtype)
     return w_q, s
 
-@torch.no_grad()
-def quantize(w, nbits=4, group_sz=32):
+def quantize(w, nbits=4, group_sz=32, ste=False):
     shape, dtype = w.shape, w.dtype
     w = w.reshape(-1, group_sz).float()
     Qp = 2 ** nbits - 1
     min_v = w.min(dim=1, keepdim=True)[0]
     s = (w.max(dim=1, keepdim=True)[0] - min_v) / Qp
-    w_q = w.sub(min_v).div(s).round_().clamp_(0, Qp).mul_(s).add_(min_v).reshape(shape).to(dtype)
+    round_fn = round_ste if ste else torch.round
+    w_q = round_fn(w.sub(min_v).div(s)).clamp(0, Qp).mul(s).add(min_v).reshape(shape).to(dtype)
     return w_q, s
 
-@torch.no_grad()
-def q_err(m, nbits=4, sz=32, scale=None, t=False, H=None, o_shrink=True):
+def q_err(m, nbits=4, sz=32, scale=None, t=False, H=None, o_shrink=True, ste=False):
     w = m.weight if hasattr(m, "weight") else m
-    w_q, s = quantize(w, nbits)
+    w_q, s = quantize(w, nbits, ste=ste)
     delta = w_q - w
     if scale is not None:
         delta.mul_(scale.weight if hasattr(scale, "weight") else scale)

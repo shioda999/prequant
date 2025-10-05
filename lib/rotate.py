@@ -272,10 +272,10 @@ def get_vector_dataset(model):
     #     for e in gate_up: vec_append(e)
     #     defuse_norm(norm, gate_up)
     #     # vec_append(down, t=True)
-    # norm, head = get_head_norm(model), get_head(model)
-    # fuse_norm(norm, [head])
-    # vec_append(head)
-    # defuse_norm(norm, [head])
+    norm, head = get_head_norm(model), get_head(model)
+    fuse_norm(norm, [head])
+    vec_append(head)
+    defuse_norm(norm, [head])
     return LargeMatrixDataset(torch.concat(D))
 
 def quantization_loss_for_rotate(w, group_sz=32, nbits=4, use_ste=False):
@@ -334,6 +334,52 @@ def apply_rotate_optim(model, lr=0.01, num_iterations=1, batch_size=512, initial
             optimizer.step()
             
             if test: break
+
+        print(f"Iteration {i+1}/{num_iterations}, Loss: {torch.tensor(loss_history).mean().item():.6f}")
+            
+    model.to(device)
+    # print(Hs)
+    H = torch.block_diag(*Hs)
+    apply_rotate(model, H.cpu())
+
+
+def apply_rotate_optim_v2(model, lr=100., num_iterations=100, batch_size=512, initial_H_list=None, device=None):
+    from .cayley import SGDG
+    if device is None: device = get_device()
+    embed = get_embed(model)
+    norm, head = get_head_norm(model), get_head(model)
+    model.cpu()
+    dim = get_dim(model)
+    sz = 32
+    if initial_H_list is None:
+        initial_H_list = [torch.eye(sz).to(device) for _ in range(dim // sz)]
+        # initial_H_list = block_diag_hadamard_adaptive(model, sz)
+
+    Hs = [torch.nn.Parameter(H.to(device)) for H in initial_H_list]
+
+    def loss_fn(vec, H, scale=None):
+        return q_err(vec.float() @ H, scale=scale, ste=True, H=H, o_shrink=False).sum()
+    
+    optimizer = SGDG(Hs, lr=lr, stiefel=True)
+    
+    loss_history = []
+    vec = embed.weight.detach().to(device)
+    vec2 = head.weight.detach().to(device)
+    scale = (norm.weight * norm.act_scale).detach().to(device)
+    for i in range(num_iterations):
+        optimizer.zero_grad()
+        H = torch.block_diag(*Hs)
+
+        loss = loss_fn(vec, H)
+
+        loss += loss_fn(vec2, H, scale)
+        loss_history.append(loss.item())
+        
+        # Backward pass
+        loss.backward()
+        
+        # Optimization step with Cayley transform
+        optimizer.step()
 
         print(f"Iteration {i+1}/{num_iterations}, Loss: {torch.tensor(loss_history).mean().item():.6f}")
             

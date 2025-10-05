@@ -8,8 +8,9 @@ def get_default_dataset(tokenizer):
     testdata = load_from_disk("./data/wikitext_test")
     return tokenizer("\n\n".join(testdata['text']), return_tensors='pt')
 
-def stat_act(model, tokenizer, dataset=None, num_samples=10):
+def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None):
     if dataset is None: dataset = get_default_dataset(tokenizer)
+    if seq_len is None: seq_len = model.seqlen
     prev_device = model.device
     device = get_device()
     model.to(device)
@@ -41,7 +42,6 @@ def stat_act(model, tokenizer, dataset=None, num_samples=10):
             )
             # print(name)
 
-    seq_len = model.seqlen
     if hasattr(dataset, 'input_ids'):
         inputs = [dataset.input_ids[:,i:i+seq_len] for i in range(0,dataset.input_ids.shape[1],seq_len)]
     else:
