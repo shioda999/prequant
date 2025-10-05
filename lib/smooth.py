@@ -2,6 +2,7 @@ import torch
 from .get_module import *
 from .utils import *
 import math
+import re
 import random
 
 @torch.no_grad()
@@ -239,8 +240,8 @@ def flip_sign(As, Bs, n_iterations=100, a=None, b=None, device=None, chunk_size=
 
 @torch.no_grad() 
 def smooth_fn(As, Bs, n_iterations=500, a=None, b=None, device=None, chunk_size=32, step_size=0.01, mode="pow", **kwargs):
-    mode = mode.split(".,+")
-    for m in mode:
+    parts = re.split(r"[.,+]", mode)
+    for m in parts:
         if "pow" in m:
             smooth_fn_pow(As, Bs, a, b, device, chunk_size)
         if "greedy" in m:
