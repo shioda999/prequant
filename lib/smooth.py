@@ -185,8 +185,59 @@ def smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32):
     for A in As: A.cpu()
     for B in Bs: B.cpu()
 
+@torch.no_grad()
+def flip_sign(As, Bs, n_iterations=100, a=None, b=None, device=None, chunk_size=32):
+    if device is None: device = get_device()
+    s = torch.ones(Bs[0].weight.shape[-1], device=device)
+    for A in As: A.to(device)
+    for B in Bs: B.to(device)
+    H = As[0].rot_mat.to(device) if hasattr(As[0], "rot_mat") else None
+    
+    # アニーリングパラメータ
+    initial_temp = 0.5#0.1
+    cooling_rate = 0.995
+    
+    # sを32要素ずつのチャンクに分割
+    num_chunks = (len(s) + chunk_size - 1) // chunk_size
+    chunks = [slice(i * chunk_size, min((i + 1) * chunk_size, len(s))) for i in range(num_chunks)]
+    
+    def compute_loss(s):
+        loss = 0
+        sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
+        if len(As[0].weight.shape) > 1:
+            for A in As: loss += q_err(A.weight * s[:,None], scale=1/s[:,None], o_shrink=False, H=H).reshape(A.weight.shape[0],-1).sum(dim=1)
+        for B in Bs: loss += q_err(B.weight / s, scale=s*sa, o_shrink=False, H=H).reshape(-1, B.weight.shape[-1]).sum(dim=0)
+        return loss.reshape(num_chunks, -1).sum(dim=1)
+        
+    # 各チャンクの初期損失を計算
+    losses = compute_loss(s)
+    initial_loss = losses.sum()
+    temperature = initial_temp
+
+    for i in range(n_iterations):
+        prev_s = s.clone()
+        idx = torch.randint(0, chunk_size, (num_chunks,), device=device) + torch.arange(num_chunks, device=device) * chunk_size
+        s[idx] *= -1
+        new_losses = compute_loss(s)
+        cond = torch.logical_or(new_losses < losses, random.random() < (new_losses - losses).div(temperature).exp())
+        s = torch.where(cond[:,None].expand(-1, chunk_size).reshape(-1), s, prev_s)
+        losses = torch.minimum(new_losses, losses)
+        temperature *= cooling_rate
+        # print(losses.sum() / initial_loss)
+
+    print(s)
+    print(losses.sum() / initial_loss)
+
+    s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
+    for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
+    for B in Bs: B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
+    for A in As: A.cpu()
+    for B in Bs: B.cpu()
+
 @torch.no_grad() 
 def smooth_fn(As, Bs, n_iterations=500, a=None, b=None, device=None, chunk_size=32, step_size=0.01, mode="pow", **kwargs):
+    if "flip_sign" in mode:
+        flip_sign(As, Bs, 300, a, b, device, chunk_size)
     if "pow" in mode:
         smooth_fn_pow(As, Bs, a, b, device, chunk_size)
     if "greedy" in mode:
