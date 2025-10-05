@@ -212,7 +212,7 @@ def block_diag_hadamard_adaptive_v2(model, sz=32):
 
 @torch.no_grad()
 def block_diag_hadamard_adaptive_v3(model, load_model_fn, sz=32):
-    labels = ["head", "embed"]#["embed", ".o", "down"]
+    labels = None#["head", "embed"]#["embed", ".o", "down"]
     before = calc_quantize_error_v2(model, sz=sz)
     cpu_dev = torch.device("cpu")
     eye = torch.eye(sz, device=cpu_dev, dtype=torch.float)
