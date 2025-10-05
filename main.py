@@ -78,14 +78,14 @@ def main():
     model_name = args.model
     model, tokenizer = get_model(model_name)
 
-    result = calc_quantize_error(model)
-
     stat_act(model, tokenizer)
+    result = calc_quantize_error(model)
 
     # apply_rotate(model)
     # apply_rotate_adaptive(model, flags=[True] * (get_dim(model) // 32))
 
     model = block_diag_hadamard_adaptive_v3(model, lambda: get_model(model_name)[0])
+    stat_act(model, tokenizer)
     # apply_rotate(model)
     # apply_smooth(model, mode="pow")
     # apply_smooth(model, mode="pow+flip_sign")

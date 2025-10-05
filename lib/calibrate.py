@@ -33,12 +33,13 @@ def stat_act(model, tokenizer, dataset=None, num_samples=10):
         stat_tensor(name, x[0] if isinstance(x, tuple) else x)
     
     hooks = []
-    target_class = [torch.nn.Linear, get_head_norm(model).__class__]
+    target_class = (torch.nn.Linear, get_head_norm(model).__class__)
     for name, m in model.named_modules():
         if isinstance(m, target_class):
             hooks.append(
                 m.register_forward_hook(partial(stat_input_hook, name=name))
             )
+            # print(name)
 
     seq_len = model.seqlen
     if hasattr(dataset, 'input_ids'):

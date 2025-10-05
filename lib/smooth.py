@@ -98,6 +98,17 @@ def decide_step_size(s, index, chunk_idx, loss_fn, current_loss, init_step_size=
     if loss < loss2: loss2, s[index] = loss, tmp_s
     return loss2
 
+def quantization_loss_for_smooth(As, Bs, num_chunks, H, s):
+    loss = 0
+    if hasattr(Bs[0], "act_scale"):
+        for B in Bs: loss += q_err(B.weight / s, scale=s*B.act_scale, o_shrink=False, H=H).reshape(-1, B.weight.shape[-1]).sum(dim=0)
+    else:
+        sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
+        # if len(As[0].weight.shape) > 1:
+        #     for A in As: loss += q_err(A.weight * s[:,None], scale=1/s[:,None], o_shrink=False, H=H).reshape(A.weight.shape[0],-1).sum(dim=1)
+        for B in Bs: loss += q_err(B.weight / s, scale=s*sa, o_shrink=False, H=H).reshape(-1, B.weight.shape[-1]).sum(dim=0)
+    return loss.reshape(num_chunks, -1).sum(dim=1)
+
 @torch.no_grad() 
 def smooth_fn_greedy(As, Bs, n_iterations=500, a=None, b=None, device=None, chunk_size=32, step_size=0.01):
     if device is None: device = get_device()
@@ -113,16 +124,10 @@ def smooth_fn_greedy(As, Bs, n_iterations=500, a=None, b=None, device=None, chun
     # sを32要素ずつのチャンクに分割
     num_chunks = (len(s) + chunk_size - 1) // chunk_size
     chunks = [slice(i * chunk_size, min((i + 1) * chunk_size, len(s))) for i in range(num_chunks)]
-    
-    def compute_loss(s):
-        loss = 0
-        # sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
-        # if len(As[0].weight.shape) > 1:
-        #     for A in As: loss += q_err(A.weight * s[:,None], scale=1/s[:,None], o_shrink=False, H=H).reshape(A.weight.shape[0],-1).sum(dim=1)
-        # for B in Bs: loss += q_err(B.weight / s, scale=s*sa, o_shrink=False, H=H).reshape(-1, B.weight.shape[-1]).sum(dim=0)
-        for B in Bs: loss += q_err(B.weight / s, scale=s*B.act_scale, o_shrink=False, H=H).reshape(-1, B.weight.shape[-1]).sum(dim=0)
-        return loss.reshape(num_chunks, -1).sum(dim=1)
         
+    def compute_loss(s):
+        return quantization_loss_for_smooth(As, Bs, num_chunks, H, s)
+    
     # 各チャンクの初期損失を計算
     losses = compute_loss(s)
     initial_loss = losses.sum()
@@ -156,13 +161,7 @@ def smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32):
     H = As[0].rot_mat.to(device) if hasattr(As[0], "rot_mat") else None
     
     def compute_loss(s):
-        loss = 0
-        # sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
-        # if len(As[0].weight.shape) > 1:
-        #     for A in As: loss += q_err(A.weight * s[:,None], scale=1/s[:,None], o_shrink=False, H=H).reshape(A.weight.shape[0],-1).sum(dim=1)
-        # for B in Bs: loss += q_err(B.weight / s, scale=s*sa, o_shrink=False, H=H).reshape(-1, B.weight.shape[-1]).sum(dim=0)
-        for B in Bs: loss += q_err(B.weight / s, scale=s*B.act_scale, o_shrink=False, H=H).reshape(-1, B.weight.shape[-1]).sum(dim=0)
-        return loss.reshape(num_chunks, -1).sum(dim=1)
+        return quantization_loss_for_smooth(As, Bs, num_chunks, H, s)
         
     def calc_minimum_loss(r):
         loss = compute_loss(r.pow(0))
@@ -210,13 +209,7 @@ def flip_sign(As, Bs, n_iterations=100, a=None, b=None, device=None, chunk_size=
     chunks = [slice(i * chunk_size, min((i + 1) * chunk_size, len(s))) for i in range(num_chunks)]
     
     def compute_loss(s):
-        loss = 0
-        # sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
-        # if len(As[0].weight.shape) > 1:
-        #     for A in As: loss += q_err(A.weight * s[:,None], scale=1/s[:,None], o_shrink=False, H=H).reshape(A.weight.shape[0],-1).sum(dim=1)
-        # for B in Bs: loss += q_err(B.weight / s, scale=s*sa, o_shrink=False, H=H).reshape(-1, B.weight.shape[-1]).sum(dim=0)
-        for B in Bs: loss += q_err(B.weight / s, scale=s*B.act_scale, o_shrink=False, H=H).reshape(-1, B.weight.shape[-1]).sum(dim=0)
-        return loss.reshape(num_chunks, -1).sum(dim=1)
+        return quantization_loss_for_smooth(As, Bs, num_chunks, H, s)
         
     # 各チャンクの初期損失を計算
     losses = compute_loss(s)
@@ -279,10 +272,10 @@ def smooth_vo(layer, a=0.5, b=0.5, **kwargs):
     v.weight.data = v.weight.div(s[:,None]).to(w_v.dtype)
     o.weight.data = w_o.mul(s).reshape(-1,ratio,w_o.shape[1]//head_dim,head_dim).transpose(1,2).reshape(tmp).to(w_o.dtype)
 
-def smooth_mlp(layer, a, b, **kwargs):
+def smooth_mlp(layer, a, b, up_down=True, **kwargs):
     norm = get_post_norm(layer)
     up, gate, down = get_up(layer), get_gate(layer), get_down(layer)
-    # smooth_fn([up], [down], a=a, b=b, **kwargs)
+    if up_down: smooth_fn([up], [down], a=a, b=b, **kwargs)
     smooth_fn([norm], [up, gate], a=a, b=b, **kwargs)
 
 def smooth_head(model, a, b, **kwargs):
@@ -290,13 +283,13 @@ def smooth_head(model, a, b, **kwargs):
     head = get_head(model)
     smooth_fn([norm], [head], a=a, b=b, **kwargs)
 
-def apply_smooth(model, a=0., b=0.5, device=None, **kwargs):
+def apply_smooth(model, a=0., b=0.5, device=None, vo=True, **kwargs):
     device = get_device()
     model.cpu()
     layers = get_layers(model)
     for l in layers:
         l.to(device)
-        # smooth_vo(l)
+        if vo: smooth_vo(l)
         smooth_mlp(l, a, b, **kwargs)
         smooth_qkv(l, a, b, **kwargs)
         l.cpu()
