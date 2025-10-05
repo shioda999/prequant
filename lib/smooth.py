@@ -236,12 +236,14 @@ def flip_sign(As, Bs, n_iterations=100, a=None, b=None, device=None, chunk_size=
 
 @torch.no_grad() 
 def smooth_fn(As, Bs, n_iterations=500, a=None, b=None, device=None, chunk_size=32, step_size=0.01, mode="pow", **kwargs):
-    if "pow" in mode:
-        smooth_fn_pow(As, Bs, a, b, device, chunk_size)
-    if "greedy" in mode:
-        smooth_fn_greedy(As, Bs, n_iterations, a, b, device, chunk_size, step_size=step_size)
-    if "flip_sign" in mode:
-        flip_sign(As, Bs, 300, a, b, device, chunk_size)
+    mode = mode.split(".,+")
+    for m in mode:
+        if "pow" in m:
+            smooth_fn_pow(As, Bs, a, b, device, chunk_size)
+        if "greedy" in m:
+            smooth_fn_greedy(As, Bs, n_iterations, a, b, device, chunk_size, step_size=step_size)
+        if "flip_sign" in m:
+            flip_sign(As, Bs, 300, a, b, device, chunk_size)
     # smooth_fn_greedy(As, Bs, 100, a, b, device, chunk_size, step_size=step_size * 4)
     # smooth_fn_greedy(As, Bs, 100, a, b, device, chunk_size, step_size=step_size)
     # smooth_fn_pow(As, Bs, a, b, device, chunk_size)

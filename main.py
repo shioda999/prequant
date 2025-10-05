@@ -84,7 +84,7 @@ def main():
 
     # model = block_diag_hadamard_adaptive_v3(model, lambda: get_model(model_name)[0])
     # apply_rotate(model)
-    apply_smooth(model, mode="flip_sign+pow")
+    apply_smooth(model, mode="pow+flip_sign")
 
     # apply_config(model)
     # if permute: apply_global_permute(model)
