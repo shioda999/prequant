@@ -3,6 +3,7 @@ import torch
 import torch.nn.functional as F
 from torch.autograd import Function
 from .get_module import *
+from tqdm import tqdm
 
 @torch.no_grad()
 def normalize(A):
@@ -120,8 +121,8 @@ def q_err(m, nbits=4, sz=32, scale=None, t=False, H=None, o_shrink=True):
     if t is True:
         delta = delta.T
     if H is not None:
-        # delta = (delta.reshape(-1, H.shape[0]).float() @ H.T).reshape(delta.shape)
-        delta = (delta.reshape(-1, H.shape[0]).float() @ H).reshape(delta.shape)
+        delta = (delta.reshape(-1, H.shape[0]).float() @ H.T).reshape(delta.shape)
+        # delta = (delta.reshape(-1, H.shape[0]).float() @ H).reshape(delta.shape)
     if o_shrink:
         return delta.reshape(delta.shape[0],-1, sz).float().pow(2).mean(dim=-1).mean(dim=0)
     else:

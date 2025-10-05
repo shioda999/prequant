@@ -12,6 +12,7 @@ from lib.permute import *
 from lib.get_module import apply_config
 from lib.utils import *
 from lib.permute_annealing import *
+from lib.calibrate import *
 from pprint import pprint
 
 device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
@@ -40,6 +41,7 @@ def get_model(model_name):
     model = AutoModelForCausalLM.from_pretrained(model_name, **kwargs)
     divide(model)
     apply_config(model)
+    model.seqlen = 4096
     return model, tokenizer
 
 @torch.no_grad()
@@ -69,7 +71,6 @@ def eval(args, model, tokenizer):
         test_text_generation(model, tokenizer)
             
     if args.eval_ppl:
-        model.seqlen = 2048
         eval_ppl(model, tokenizer, device, datasets=["wikitext2"])
 
 def main():
@@ -79,12 +80,15 @@ def main():
 
     result = calc_quantize_error(model)
 
+    stat_act(model, tokenizer)
+
     # apply_rotate(model)
     # apply_rotate_adaptive(model, flags=[True] * (get_dim(model) // 32))
 
     # model = block_diag_hadamard_adaptive_v3(model, lambda: get_model(model_name)[0])
     # apply_rotate(model)
-    apply_smooth(model, mode="pow+flip_sign")
+    apply_smooth(model, mode="pow")
+    # apply_smooth(model, mode="pow+flip_sign")
 
     # apply_config(model)
     # if permute: apply_global_permute(model)
