@@ -85,9 +85,9 @@ def main():
     # apply_rotate(model)
     # apply_rotate_adaptive(model, flags=[True] * (get_dim(model) // 32))
 
-    # model = block_diag_hadamard_adaptive_v3(model, lambda: get_model(model_name)[0])
+    model = block_diag_hadamard_adaptive_v3(model, lambda: get_model(model_name)[0])
     # apply_rotate(model)
-    apply_smooth(model, mode="pow")
+    # apply_smooth(model, mode="pow")
     # apply_smooth(model, mode="pow+flip_sign")
 
     # apply_config(model)
