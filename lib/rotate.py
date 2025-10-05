@@ -365,7 +365,7 @@ def apply_rotate_optim_v2(model, lr=100., num_iterations=100, batch_size=512, in
     loss_history = []
     vec = embed.weight.detach().to(device)
     vec2 = head.weight.detach().to(device)
-    scale = (norm.weight * norm.act_scale).detach().to(device)
+    scale = (norm.weight.to(device) * norm.act_scale.to(device)).detach()
     for i in range(num_iterations):
         optimizer.zero_grad()
         H = torch.block_diag(*Hs)
