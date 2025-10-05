@@ -135,7 +135,9 @@ def calc_quantize_error(model, sz=32, H=None):
 
     def register(m, labels, nbits=4, norm=None, t=False):
         if norm is None: err = q_err(m, nbits, t=t, sz=sz, H=H)
-        else: err = q_err(m, nbits, scale=norm.weight * norm.act_scale, t=t, sz=sz, H=H)
+        else:
+            scale = norm.weight * norm.act_scale.to(norm.weight.device)
+            err = q_err(m, nbits, scale=scale, t=t, sz=sz, H=H)
         result["!SUM"] += err.sum().item()
         for e in labels:
             if e not in result: result[e] = err.sum().item()
