@@ -108,7 +108,7 @@ def apply_global_permute(model, perm):
     permute_head(model, perm)
 
 @torch.no_grad()
-def apply_global_permute_v2(model, m=0):
+def apply_global_permute_v2(model, m=0, n=0):
     model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
     
     perm_func = [get_perm, get_perm_v2, get_perm_v3, get_perm_v4][m]
@@ -116,6 +116,7 @@ def apply_global_permute_v2(model, m=0):
     # metric = emb.abs().max(dim=0)[0]
     # metric = get_head_norm(model).act_scale.abs()
     norm = get_head_norm(model)
-    metric = norm.act_scale.abs() / norm.weight.abs()
+    if n == 0: metric = norm.act_scale.abs().cpu() / norm.weight.abs()
+    if n == 1: metric = norm.act_scale.abs().cpu()
     perm = perm_func(metric)
     apply_global_permute(model, perm)
