@@ -20,7 +20,7 @@ def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None):
     
     def stat_tensor(name, tensor):
         hidden_dim = tensor.shape[-1]
-        tensor = tensor.view(-1, hidden_dim).abs().detach()
+        tensor = tensor.view(-1, hidden_dim).abs().detach().cpu()
         comming_l2 = tensor.abs().double().pow(2).mean(dim=0).sqrt().float()
         if name in act_scales:
             act_scales[name] = (act_scales[name].double().pow(2)*cnt[name]/(cnt[name]+1) + comming_l2.double().pow(2)/(cnt[name]+1)).sqrt().float()
