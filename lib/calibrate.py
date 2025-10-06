@@ -8,6 +8,7 @@ def get_default_dataset(tokenizer):
     testdata = load_from_disk("./data/wikitext_test")
     return tokenizer("\n\n".join(testdata['text']), return_tensors='pt')
 
+@torch.no_grad()
 def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None):
     if dataset is None: dataset = get_default_dataset(tokenizer)
     if seq_len is None: seq_len = model.seqlen
