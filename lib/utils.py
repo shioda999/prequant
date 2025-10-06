@@ -111,17 +111,19 @@ def quantize(w, nbits=4, group_sz=32, ste=False):
     w_q = round_fn(w.sub(min_v).div(s)).clamp(0, Qp).mul(s).add(min_v).reshape(shape).to(dtype)
     return w_q, s
 
-def q_err(m, nbits=4, sz=32, scale=None, t=False, H=None, o_shrink=True, ste=False):
+def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shrink=True, ste=False):
     w = m.weight if hasattr(m, "weight") else m
     w_q, s = quantize(w, nbits, ste=ste)
     delta = w_q - w
     if scale is not None:
-        delta.mul_(scale.weight if hasattr(scale, "weight") else scale)
+        delta = delta.mul(scale.weight if hasattr(scale, "weight") else scale)
     if t is True:
         delta = delta.T
     if H is not None:
         delta = (delta.reshape(-1, H.shape[0]).float() @ H.T).reshape(delta.shape)
         # delta = (delta.reshape(-1, H.shape[0]).float() @ H).reshape(delta.shape)
+    if act_scale is not None:
+        delta = delta.mul(act_scale)
     if o_shrink:
         return delta.reshape(delta.shape[0],-1, sz).float().pow(2).mean(dim=-1).mean(dim=0)
     else:
@@ -135,8 +137,8 @@ def calc_quantize_error(model, sz=32, H=None):
     def register(m, labels, nbits=4, norm=None, t=False):
         if norm is None: err = q_err(m, nbits, t=t, sz=sz, H=H)
         else:
-            scale = norm.weight * norm.act_scale.to(norm.weight.device)
-            err = q_err(m, nbits, scale=scale, t=t, sz=sz, H=H)
+            act_scale = norm.act_scale.to(norm.weight.device)
+            err = q_err(m, nbits, scale=norm.weight, act_scale=act_scale, t=t, sz=sz, H=H)
         result["!SUM"] += err.sum().item()
         for e in labels:
             if e not in result: result[e] = err.sum().item()
@@ -166,8 +168,8 @@ def calc_quantize_error_v2(model, sz=32, labels=None, H=None):
         if labels is None or any([e in label for e in labels]):
             if norm is None: err = q_err(m, nbits, t=t, sz=sz, H=H)
             else:
-                scale = norm.weight * norm.act_scale.to(norm.weight.device)
-                err = q_err(m, nbits, scale=scale, t=t, sz=sz, H=H)
+                act_scale = norm.act_scale.to(norm.weight.device)
+                err = q_err(m, nbits, scale=norm.weight, act_scale=act_scale, t=t, sz=sz, H=H)
             result[label] = err
 
     register(get_embed(model), "embed")

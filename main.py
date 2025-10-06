@@ -84,8 +84,11 @@ def main():
     # apply_rotate(model)
     # apply_rotate_adaptive(model, flags=[True] * (get_dim(model) // 32))
 
+    apply_global_permute_v2(model)
+    n = get_dim(model) // 32
+    apply_rotate_adaptive(model, flags=[False] * 1 + [True] * (n - 1))
     # model = block_diag_hadamard_adaptive_v3(model, lambda: get_model(model_name)[0])
-    apply_rotate_optim_v2(model)
+    # apply_rotate_optim_v2(model)
     stat_act(model, tokenizer, num_samples=1, seq_len=5)
     # apply_rotate(model)
     # apply_smooth(model, mode="pow")

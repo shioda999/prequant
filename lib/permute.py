@@ -96,20 +96,7 @@ def apply_permute(model, m=1):
         permute_mlp_v2(l, perm_func)
 
 @torch.no_grad()
-def apply_global_permute(model, m=0):
-    model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
-    
-    perm_func = [get_perm, get_perm_v2, get_perm_v3, get_perm_v4][m]
-    metric = 0
-    emb = get_embed(model).weight
-    p = 10
-    metric = emb.abs().max(dim=0)[0]
-    metric = metric + emb.abs().pow(p).mean(dim=0).pow(1/p)
-    perm = perm_func(metric)
-    apply_global_permute_v2(model, perm)
-
-@torch.no_grad()
-def apply_global_permute_v2(model, perm):
+def apply_global_permute(model, perm):
     model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
     
     layers = get_layers(model)
@@ -119,3 +106,16 @@ def apply_global_permute_v2(model, perm):
         permute_o(l, perm)
         permute_mlp(l, perm)
     permute_head(model, perm)
+
+@torch.no_grad()
+def apply_global_permute_v2(model, m=0):
+    model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
+    
+    perm_func = [get_perm, get_perm_v2, get_perm_v3, get_perm_v4][m]
+    # emb = get_embed(model).weight
+    # metric = emb.abs().max(dim=0)[0]
+    # metric = get_head_norm(model).act_scale.abs()
+    norm = get_head_norm(model)
+    metric = norm.act_scale.abs() / norm.weight.abs()
+    perm = perm_func(metric)
+    apply_global_permute(model, perm)

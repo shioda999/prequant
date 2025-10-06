@@ -159,10 +159,6 @@ def apply_rotate_adaptive(model, sz=32, flags=None, device=None):
     apply_rotate(model, H)
 
 @torch.no_grad()
-def apply_rotate_permute(model, sz=32):
-    pass
-
-@torch.no_grad()
 def apply_rotate_vo(model, device=None):
     if device is None: device = get_device()
     model.cpu()
@@ -176,15 +172,16 @@ def apply_rotate_vo(model, device=None):
 
 def block_diag_hadamard_adaptive(model, sz=32):
     emb = get_embed(model)
+    head, norm = get_head(model), get_head_norm(model)
     tmp = emb.weight.clone()
-    before = q_err(emb, sz=sz)
+    before = q_err(emb, sz=sz) + q_err(head, sz=sz, scale=norm.weight)
 
     H = generate_hadamard_matrix(sz, torch.device("cpu"))
     dim = get_dim(model)
     rotate_embedding(model, H)
-    after = q_err(emb, sz=sz)
+    after = q_err(emb, sz=sz, H=H) + q_err(head, sz=sz, scale=norm.weight, H=H)
     emb.weight.data = tmp
-    flags = before > after * 1.01
+    flags = before > after
     # flags = torch.logical_and(before > after, before2 > after2)
     print(before > after)
     print(flags)
