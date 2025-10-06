@@ -182,7 +182,8 @@ def block_diag_hadamard_adaptive(model, sz=32):
     dim = get_dim(model)
     rotate_embedding(model, H)
     rotate_head(model, H)
-    after = q_err(emb, sz=sz, H=H) + q_err(head, sz=sz, scale=norm.weight, act_scale=(norm.act_scale.to(tmp.device).reshape(-1, H.shape[0]) @ H).reshape(-1), H=H)
+    # after = q_err(emb, sz=sz, H=H) + q_err(head, sz=sz, scale=norm.weight, act_scale=(norm.act_scale.to(tmp.device).reshape(-1, H.shape[0]) @ H).reshape(-1), H=H)
+    after = q_err(emb, sz=sz, H=H) + q_err(head, sz=sz, scale=norm.weight, act_scale=norm.act_scale.to(tmp.device), H=H)
     emb.weight.data = tmp
     norm.weight.data = tmp_norm
     head.weight.data = tmp_head
