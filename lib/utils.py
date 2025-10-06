@@ -117,13 +117,13 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
     delta = w_q - w
     if scale is not None:
         delta = delta.mul(scale.weight if hasattr(scale, "weight") else scale)
+    if act_scale is not None:
+        delta = delta.mul(act_scale)
     if t is True:
         delta = delta.T
     if H is not None:
         delta = (delta.reshape(-1, H.shape[0]).float() @ H.T).reshape(delta.shape)
         # delta = (delta.reshape(-1, H.shape[0]).float() @ H).reshape(delta.shape)
-    if act_scale is not None:
-        delta = delta.mul(act_scale)
     if o_shrink:
         return delta.reshape(delta.shape[0],-1, sz).float().pow(2).mean(dim=-1).mean(dim=0)
     else:
