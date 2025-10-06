@@ -174,13 +174,18 @@ def block_diag_hadamard_adaptive(model, sz=32):
     emb = get_embed(model)
     head, norm = get_head(model), get_head_norm(model)
     tmp = emb.weight.clone()
-    before = q_err(emb, sz=sz) + q_err(head, sz=sz, scale=norm.weight)
+    tmp_norm = norm.weight.clone()
+    tmp_head = head.weight.clone()
+    before = q_err(emb, sz=sz) + q_err(head, sz=sz, scale=norm.weight, act_scale=norm.act_scale)
 
     H = generate_hadamard_matrix(sz, torch.device("cpu"))
     dim = get_dim(model)
     rotate_embedding(model, H)
-    after = q_err(emb, sz=sz, H=H) + q_err(head, sz=sz, scale=norm.weight, H=H)
+    rotate_head(model, H)
+    after = q_err(emb, sz=sz, H=H) + q_err(head, sz=sz, scale=norm.weight, act_scale=(norm.act_scale.reshape(-1, H.shape[0]) @ H).reshape(-1), H=H)
     emb.weight.data = tmp
+    norm.weight.data = tmp_norm
+    head.weight.data = tmp_head
     flags = before > after
     # flags = torch.logical_and(before > after, before2 > after2)
     print(before > after)
