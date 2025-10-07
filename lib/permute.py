@@ -9,7 +9,7 @@ import torch
 def permute(A, perm):
     t = A.weight.shape
     A.weight.data = A.weight[..., perm]
-    if hasattr(A, "act_scale"): A.act_scale = A.act_scale[..., perm]
+    # if hasattr(A, "act_scale"): A.act_scale = A.act_scale[..., perm]
     assert t == A.weight.shape
 
 @torch.no_grad()
