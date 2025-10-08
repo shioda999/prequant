@@ -259,6 +259,9 @@ def smooth_qkv(layer, a, b, **kwargs):
 def smooth_vo(layer, a=0.5, b=0.5, **kwargs):
     head_dim = get_head_dim(layer)
     v, o = get_v(layer), get_o(layer)
+    device = get_device()
+    v.to(device)
+    o.to(device)
     w_o, w_v = o.weight.data, v.weight.data
     tmp = w_o.shape
     ratio = w_o.shape[1] // w_v.shape[0]
@@ -271,6 +274,9 @@ def smooth_vo(layer, a=0.5, b=0.5, **kwargs):
 
     v.weight.data = v.weight.div(s[:,None]).to(w_v.dtype)
     o.weight.data = w_o.mul(s).reshape(-1,ratio,w_o.shape[1]//head_dim,head_dim).transpose(1,2).reshape(tmp).to(w_o.dtype)
+
+    v.to("cpu")
+    o.to("cpu")
 
 def smooth_mlp(layer, a, b, up_down=True, **kwargs):
     norm = get_post_norm(layer)
