@@ -67,7 +67,8 @@ def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None):
     for name, m in model.named_modules():
         if isinstance(m, target_class):
             t = act_scales[name]
-            t = (t - t.mean()).sigmoid()
+            t = t / t.abs().mean()
+            t = torch.clamp(t, 0.25, 4.)
             m.act_scale = t
 
     model.to(prev_device)
