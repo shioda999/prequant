@@ -275,8 +275,8 @@ def smooth_vo(layer, a=0.5, b=0.5, **kwargs):
 def smooth_mlp(layer, a, b, up_down=True, **kwargs):
     norm = get_post_norm(layer)
     up, gate, down = get_up(layer), get_gate(layer), get_down(layer)
-    if up_down: smooth_fn([up], [down], a=a, b=b, **kwargs)
     smooth_fn([norm], [up, gate], a=a, b=b, **kwargs)
+    if up_down: smooth_fn([up], [down], a=a, b=b, **kwargs)
 
 def smooth_head(model, a, b, **kwargs):
     norm = get_head_norm(model)
@@ -289,9 +289,9 @@ def apply_smooth(model, a=0., b=0.5, device=None, vo=True, **kwargs):
     layers = get_layers(model)
     for l in layers:
         l.to(device)
-        if vo: smooth_vo(l)
         smooth_mlp(l, a, b, **kwargs)
         smooth_qkv(l, a, b, **kwargs)
+        if vo: smooth_vo(l)
         l.cpu()
     if get_embed(model).weight is not get_head(model).weight:
         smooth_head(model, a, b, **kwargs)
