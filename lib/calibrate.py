@@ -66,7 +66,9 @@ def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None):
 
     for name, m in model.named_modules():
         if isinstance(m, target_class):
-            m.act_scale = act_scales[name]
+            t = act_scales[name]
+            t = (t - t.mean()).sigmoid()
+            m.act_scale = t
 
     model.to(prev_device)
     return act_scales
