@@ -67,8 +67,8 @@ def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None, min_v
     for name, m in model.named_modules():
         if isinstance(m, target_class):
             t = act_scales[name]
-            t = t / t.abs().mean()
-            t = 1 + t.sigmoid()
+            # t = t / t.abs().mean()
+            # t = 1 + t.sigmoid()
             # print(name, t)
             if min_v is not None or max_v is not None:
                 t = torch.clamp(t, min_v, max_v)
