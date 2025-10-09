@@ -68,8 +68,10 @@ def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None, min_v
         if isinstance(m, target_class):
             t = act_scales[name]
             t = t / t.abs().mean()
-            print(name, t)
-            t = torch.clamp(t, min_v, max_v)
+            t = 1 + t.sigmoid()
+            # print(name, t)
+            if min_v is not None or max_v is not None:
+                t = torch.clamp(t, min_v, max_v)
             m.act_scale = t
 
     model.to(prev_device)
