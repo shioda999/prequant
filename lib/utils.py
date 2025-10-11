@@ -118,7 +118,6 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
     if scale is not None:
         delta = delta.mul(scale.weight if hasattr(scale, "weight") else scale)
     if act_scale is not None:
-        # pass
         delta = delta.mul(act_scale.to(delta.device))
     if t is True:
         delta = delta.T
