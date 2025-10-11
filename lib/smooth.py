@@ -167,7 +167,7 @@ def smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32):
         loss = compute_loss(r.pow(0))
         p = torch.zeros((num_chunks,), device=device)
         for i in torch.arange(0, 1, 0.05):
-            new_loss = compute_loss(r.pow(i))
+            new_loss = compute_loss(r.pow(i).clamp(0.,5.))
             p = torch.where(new_loss < loss, i, p)
             loss = torch.minimum(new_loss, loss)
         return r.pow(p[:,None].clamp(0.,5.).expand(-1, chunk_size).reshape(-1)), loss
