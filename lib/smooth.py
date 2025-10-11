@@ -147,7 +147,7 @@ def smooth_fn_greedy(As, Bs, n_iterations=500, a=None, b=None, device=None, chun
     for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
     for B in Bs:
         B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
-        if hasattr(B, "act_scale"): B.act_scale.div_(s)
+        if hasattr(B, "act_scale"): B.act_scale.mul_(s)
     for A in As: A.cpu()
     for B in Bs: B.cpu()
 
@@ -199,7 +199,7 @@ def smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32):
     for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
     for B in Bs:
         B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
-        if hasattr(B, "act_scale"): B.act_scale.div_(s)
+        if hasattr(B, "act_scale"): B.act_scale.mul_(s)
     for A in As: A.cpu()
     for B in Bs: B.cpu()
 
@@ -245,7 +245,7 @@ def flip_sign(As, Bs, n_iterations=100, a=None, b=None, device=None, chunk_size=
     for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
     for B in Bs:
         B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
-        if hasattr(B, "act_scale"): B.act_scale.div_(s)
+        if hasattr(B, "act_scale"): B.act_scale.mul_(s)
     for A in As: A.cpu()
     for B in Bs: B.cpu()
 
