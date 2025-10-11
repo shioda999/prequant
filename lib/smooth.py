@@ -192,6 +192,7 @@ def smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32):
         s = torch.where((loss < loss2)[:,None].expand(-1, chunk_size).reshape(-1), s, s2)
         loss = torch.where(loss < loss2, loss, loss2)
 
+    s = torch.ones_like(s)
     print(s)
     s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
     for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
