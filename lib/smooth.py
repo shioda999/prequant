@@ -301,7 +301,7 @@ def apply_smooth(model, a=0., b=0.5, device=None, vo=True, **kwargs):
     model.cpu()
     layers = get_layers(model)
     for i, l in enumerate(layers):
-        if i < len(layers) - 10: continue
+        if i < len(layers) - 20: continue
         l.to(device)
         smooth_mlp(l, a, b, **kwargs)
         smooth_qkv(l, a, b, **kwargs)
