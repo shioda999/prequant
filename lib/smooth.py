@@ -180,14 +180,17 @@ def smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32):
     s2, loss2 = calc_minimum_loss(r2)
 
     s = torch.where((loss < loss2)[:,None].expand(-1, chunk_size).reshape(-1), s, s2)
+    loss = torch.where(loss < loss2, loss, loss2)
 
     if hasattr(As[0], "act_scale"):
         s2, loss2 = calc_minimum_loss(As[0].act_scale)
         s = torch.where((loss < loss2)[:,None].expand(-1, chunk_size).reshape(-1), s, s2)
+        loss = torch.where(loss < loss2, loss, loss2)
 
-    # if hasattr(Bs[0], "act_scale"):
-    #     s2, loss2 = calc_minimum_loss(1 / Bs[0].act_scale)
-    #     s = torch.where((loss < loss2)[:,None].expand(-1, chunk_size).reshape(-1), s, s2)
+    if hasattr(Bs[0], "act_scale"):
+        s2, loss2 = calc_minimum_loss(1 / Bs[0].act_scale)
+        s = torch.where((loss < loss2)[:,None].expand(-1, chunk_size).reshape(-1), s, s2)
+        loss = torch.where(loss < loss2, loss, loss2)
 
     print(s)
     s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
