@@ -166,7 +166,7 @@ def smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32):
     def calc_minimum_loss(r):
         loss = compute_loss(r.pow(0))
         p = torch.zeros((num_chunks,), device=device)
-        for i in torch.arange(-1, 1, 0.05):
+        for i in torch.arange(0, 1, 0.05):
             new_loss = compute_loss(r.pow(i))
             p = torch.where(new_loss < loss, i, p)
             loss = torch.minimum(new_loss, loss)
@@ -300,7 +300,8 @@ def apply_smooth(model, a=0., b=0.5, device=None, vo=True, **kwargs):
     device = get_device()
     model.cpu()
     layers = get_layers(model)
-    for l in layers:
+    for i, l in enumerate(layers):
+        if i >= 5: break
         l.to(device)
         smooth_mlp(l, a, b, **kwargs)
         smooth_qkv(l, a, b, **kwargs)
