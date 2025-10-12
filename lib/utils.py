@@ -111,12 +111,11 @@ def quantize(w, nbits=4, group_sz=32, ste=False):
     w_q = round_fn(w.sub(min_v).div(s)).clamp(0, Qp).mul(s).add(min_v).reshape(shape).to(dtype)
     return w_q, s
 
-def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shrink=True, ste=False, quadratic=False):
+def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shrink=True, ste=False, quadratic=True):
     w = m.weight if hasattr(m, "weight") else m
     w_q, s = quantize(w, nbits, ste=ste)
     delta = w_q - w
-    if quadratic:
-        loss += delta.mean(dim=-1).mul((scale * act_scale).abs().mean()).abs().mean()
+    delta2 = delta
     if scale is not None:
         delta = delta.mul(scale.weight if hasattr(scale, "weight") else scale)
     if act_scale is not None:
@@ -127,6 +126,15 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
         delta = (delta.reshape(-1, H.shape[0]).float() @ H.T).reshape(delta.shape)
         # delta = (delta.reshape(-1, H.shape[0]).float() @ H).reshape(delta.shape)
     loss = delta.float().pow(2).mean(dim=0)
+    if quadratic:
+        # delta = delta2.mean(dim=-1)
+        # if scale is not None:
+        #     s = scale.weight if hasattr(scale, "weight") else scale
+        #     delta = delta.mul(s.abs().mean())
+        # if act_scale is not None:
+        #     delta = delta.mul(act_scale.to(delta.device).abs().mean())
+        # loss += delta.abs().mean()
+        loss += delta.mean(dim=0).abs().mean()
     if o_shrink:
         loss = loss.reshape(-1, sz).mean(dim=-1)
     return loss
