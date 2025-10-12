@@ -115,6 +115,8 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
     w = m.weight if hasattr(m, "weight") else m
     w_q, s = quantize(w, nbits, ste=ste)
     delta = w_q - w
+    if quadratic:
+        loss += delta.mean(dim=-1).mul((scale * act_scale).abs().mean()).abs().mean()
     if scale is not None:
         delta = delta.mul(scale.weight if hasattr(scale, "weight") else scale)
     if act_scale is not None:
@@ -127,8 +129,6 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
     loss = delta.float().pow(2).mean(dim=0)
     if o_shrink:
         loss = loss.reshape(-1, sz).mean(dim=-1)
-    if quadratic:
-        loss += delta.mean(dim=-1).abs().mean()
     return loss
 
 @torch.no_grad()
