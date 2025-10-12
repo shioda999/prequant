@@ -102,8 +102,7 @@ def quantization_loss_for_smooth(As, Bs, num_chunks, H, s):
     loss = 0
     if hasattr(Bs[0], "act_scale"):
         for i, B in enumerate(Bs):
-            loss += q_err(B.weight / s, act_scale=B.act_scale, o_shrink=False, H=H).reshape(-1, B.weight.shape[-1]).sum(dim=0)
-            # loss += q_err(B.weight / s, scale=s, act_scale=As[0].act_scale, o_shrink=False, H=H).reshape(-1, B.weight.shape[-1]).sum(dim=0)
+            loss += q_err(B.weight / s, scale=s, act_scale=B.act_scale, o_shrink=False, H=H).reshape(-1, B.weight.shape[-1]).sum(dim=0)
     else:
         sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
         # if len(As[0].weight.shape) > 1:
