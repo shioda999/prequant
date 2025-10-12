@@ -155,7 +155,7 @@ def smooth_fn_greedy(As, Bs, n_iterations=500, a=None, b=None, device=None, chun
     for B in Bs: B.cpu()
 
 @torch.no_grad()
-def smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32):
+def _smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32):
     if device is None: device = get_device()
     for A in As: A.to(device)
     for B in Bs: B.to(device)
@@ -196,6 +196,48 @@ def smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32):
         s2, loss2 = calc_minimum_loss(1 / Bs[0].act_scale)
         s = torch.where((loss < loss2)[:,None].expand(-1, chunk_size).reshape(-1), s, s2)
         loss = torch.where(loss < loss2, loss, loss2)
+
+    print(s)
+    s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
+    for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
+    for B in Bs:
+        B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
+        if hasattr(B, "act_scale"): B.act_scale.mul_(s)
+    for A in As: A.cpu()
+    for B in Bs: B.cpu()
+
+@torch.no_grad()
+def smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32):
+    if device is None: device = get_device()
+    for A in As: A.to(device)
+    for B in Bs: B.to(device)
+    
+    dim = Bs[0].weight.shape[-1]
+    num_chunks = (dim + chunk_size - 1) // chunk_size
+    chunks = [slice(i * chunk_size, min((i + 1) * chunk_size, dim)) for i in range(num_chunks)]
+    H = As[0].rot_mat.to(device) if hasattr(As[0], "rot_mat") else None
+    
+    def compute_loss(s):
+        return quantization_loss_for_smooth(As, Bs, num_chunks, H, s)
+        
+    def calc_minimum_loss(r, r2):
+        loss = compute_loss(r.pow(0))
+        p = torch.zeros((num_chunks,), device=device)
+        p2 = torch.zeros((num_chunks,), device=device)
+        min_v, max_v = 0.999, 1.001
+        for i in torch.arange(0, 1, 0.05):
+            for j in torch.arange(0, 1, 0.05):
+                new_loss = compute_loss(r.pow(i)*r2.pow(j))
+                p = torch.where(new_loss < loss, i, p)
+                p2 = torch.where(new_loss < loss, j, p2)
+                loss = torch.minimum(new_loss, loss)
+        return r.pow(p[:,None].expand(-1, chunk_size).reshape(-1)) * r2.pow(p2[:,None].expand(-1, chunk_size).reshape(-1)), loss
+
+    p = 2
+    r = torch.concat([normalize(B.weight) for B in Bs]).reshape(-1, Bs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p)
+    r2 = 1 / Bs[0].act_scale
+
+    s, loss = calc_minimum_loss(r, r2)
 
     print(s)
     s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
