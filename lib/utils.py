@@ -111,7 +111,7 @@ def quantize(w, nbits=4, group_sz=32, ste=False):
     w_q = round_fn(w.sub(min_v).div(s)).clamp(0, Qp).mul(s).add(min_v).reshape(shape).to(dtype)
     return w_q, s
 
-def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shrink=True, ste=False, quadratic=True, hamiltonian=None):
+def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shrink=True, ste=False, quadratic=False, hamiltonian=None):
     w = m.weight if hasattr(m, "weight") else m
     w_q, s = quantize(w, nbits, ste=ste)
     delta = w_q - w
@@ -308,3 +308,15 @@ class LargeMatrixDataset(torch.utils.data.Dataset):
     
 def grad_change(x, grad):
     return x.detach() + grad - grad.detach()
+
+def sinkhorn(K, r=None, c=None, n_iter=50, eps=1e-9):
+    n = K.shape[0]
+    if r is None: r = torch.ones(n, device=K.device) / n
+    if c is None: c = torch.ones(n, device=K.device) / n
+    u = torch.ones_like(r)
+    v = torch.ones_like(c)
+    for _ in range(n_iter):
+        u = r / (K @ v + eps)
+        v = c / (K.T @ u + eps)
+    P = torch.diag(u) @ K @ torch.diag(v)
+    return P
