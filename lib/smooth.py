@@ -303,7 +303,7 @@ def smooth_fn_sinkhorn(As, Bs, device=None, chunk_size=32):
     H = As[0].rot_mat.to(device) if hasattr(As[0], "rot_mat") else None
     
     w_b = torch.concat([B.weight for B in Bs]).float()
-    if hasattr(Bs[0], "act_scale"): w_b.mul_(Bs[0].act_scale.pow(0.1))
+    if hasattr(Bs[0], "act_scale"): w_b.mul_(Bs[0].act_scale)
 
     s = []
     for i in range(dim // chunk_size):
