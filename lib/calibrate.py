@@ -25,10 +25,10 @@ def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None, min_v
         batch_sz = tensor.shape[0]
         if calc_H: H = (tensor.transpose(-1, -2) @ tensor).sum(dim=0).cpu()
         tensor = tensor.view(-1, hidden_dim).abs().detach()
-        comming_l2 = tensor.abs().double().pow(2).sum(dim=0).sqrt().div(batch_sz).float()
+        comming_l2 = tensor.abs().double().pow(2).mean(dim=0).sqrt().float()
         if name in act_scales:
             nx_cnt = cnt[name] + batch_sz
-            act_scales[name] = (act_scales[name].double().pow(2)*cnt[name] + comming_l2.double().pow(2)).sqrt().div(nx_cnt).float()
+            act_scales[name] = (act_scales[name].double().pow(2)*cnt[name]/nx_cnt + comming_l2.double().pow(2)/nx_cnt).sqrt().float()
             if calc_H: Hs[name] = Hs[name] * cnt[name]/nx_cnt + H / nx_cnt
             cnt[name] = nx_cnt
         else:
