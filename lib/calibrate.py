@@ -9,7 +9,7 @@ def get_default_dataset(tokenizer):
     return tokenizer("\n\n".join(testdata['text']), return_tensors='pt')
 
 @torch.no_grad()
-def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None, min_v=None, max_v=None, calc_H=False):
+def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None, min_v=None, max_v=None, calc_H=True):
     if dataset is None: dataset = get_default_dataset(tokenizer)
     if seq_len is None: seq_len = model.seqlen
     prev_device = model.device
