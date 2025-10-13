@@ -250,48 +250,6 @@ def _smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32):
     for B in Bs: B.cpu()
 
 @torch.no_grad()
-def smooth_fn_iter(As, Bs, n_iterations=10, device=None, chunk_size=32):
-    if device is None: device = get_device()
-    s = torch.ones(Bs[0].weight.shape[-1], device=device)
-    for A in As: A.to(device)
-    for B in Bs: B.to(device)
-    H = As[0].rot_mat.to(device) if hasattr(As[0], "rot_mat") else None
-    
-    # sを32要素ずつのチャンクに分割
-    num_chunks = (len(s) + chunk_size - 1) // chunk_size
-        
-    def compute_loss(s):
-        return quantization_loss_for_smooth(As, Bs, num_chunks, H, s)
-    
-    w_b = torch.concat([B.weight for B in Bs]).abs()
-    # if hasattr(Bs[0], "act_scale"): w_b.mul_(Bs[0].act_scale)
-    
-    # 各チャンクの初期損失を計算
-    losses = compute_loss(s)
-    initial_loss = losses.sum()
-
-    for i in range(n_iterations):
-        prev_s = s.clone()
-        # idx = torch.randint(0, chunk_size, (num_chunks,), device=device) + torch.arange(num_chunks, device=device) * chunk_size
-        s *= w_b.mean(dim=0).sqrt()
-        w_b /= w_b.mean(dim=0, keepdim=True).sqrt()
-        new_losses = compute_loss(s)
-        s = torch.where((new_losses < losses)[:,None].expand(-1, chunk_size).reshape(-1), s, prev_s)
-        losses = torch.minimum(new_losses, losses)
-        print(losses.sum() / initial_loss)
-
-    print(s)
-    print(losses.sum() / initial_loss)
-
-    s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
-    for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
-    for B in Bs:
-        B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
-        if hasattr(B, "act_scale"): B.act_scale.mul_(s_)
-    for A in As: A.cpu()
-    for B in Bs: B.cpu()
-
-@torch.no_grad()
 def smooth_fn_sinkhorn(As, Bs, device=None, chunk_size=32):
     if device is None: device = get_device()
     for A in As: A.to(device)
@@ -376,8 +334,6 @@ def smooth_fn(As, Bs, n_iterations=500, device=None, chunk_size=32, step_size=0.
             smooth_fn_greedy(As, Bs, n_iterations, device, chunk_size, step_size=step_size)
         if "flip_sign" in m:
             flip_sign(As, Bs, 300, device, chunk_size)
-        if "iter" in m:
-            smooth_fn_iter(As, Bs, 10, device, chunk_size)
         if "sinkhorn" in m:
             smooth_fn_sinkhorn(As, Bs, device, chunk_size)
     # smooth_fn_greedy(As, Bs, 100, device, chunk_size, step_size=step_size * 4)
