@@ -23,7 +23,7 @@ def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None, min_v
     def stat_tensor(name, tensor):
         hidden_dim = tensor.shape[-1]
         batch_sz = tensor.shape[0]
-        if calc_H: H = (tensor.transpose(-1, -2) @ tensor).sum(dim=0)
+        if calc_H: H = (tensor.transpose(-1, -2) @ tensor).sum(dim=0).cpu()
         tensor = tensor.view(-1, hidden_dim).abs().detach()
         comming_l2 = tensor.abs().double().pow(2).mean(dim=0).sqrt().float()
         if name in act_scales:
