@@ -114,7 +114,7 @@ def quantization_loss_for_smooth(As, Bs, num_chunks, H, s):
     return loss.reshape(num_chunks, -1).sum(dim=1)
 
 @torch.no_grad() 
-def smooth_fn_greedy(As, Bs, n_iterations=500, a=None, b=None, device=None, chunk_size=32, step_size=0.01):
+def smooth_fn_greedy(As, Bs, n_iterations=500, device=None, chunk_size=32, step_size=0.01):
     if device is None: device = get_device()
     s = torch.ones(Bs[0].weight.shape[-1], device=device)
     for A in As: A.to(device)
@@ -156,7 +156,7 @@ def smooth_fn_greedy(As, Bs, n_iterations=500, a=None, b=None, device=None, chun
     for B in Bs: B.cpu()
 
 @torch.no_grad()
-def smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32):
+def smooth_fn_pow(As, Bs, device=None, chunk_size=32):
     if device is None: device = get_device()
     for A in As: A.to(device)
     for B in Bs: B.to(device)
@@ -250,7 +250,7 @@ def _smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32):
     for B in Bs: B.cpu()
 
 @torch.no_grad()
-def smooth_fn_iter(As, Bs, n_iterations=10, a=None, b=None, device=None, chunk_size=32):
+def smooth_fn_iter(As, Bs, n_iterations=10, device=None, chunk_size=32):
     if device is None: device = get_device()
     s = torch.ones(Bs[0].weight.shape[-1], device=device)
     for A in As: A.to(device)
@@ -283,6 +283,35 @@ def smooth_fn_iter(As, Bs, n_iterations=10, a=None, b=None, device=None, chunk_s
     print(s)
     print(losses.sum() / initial_loss)
 
+    s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
+    for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
+    for B in Bs:
+        B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
+        if hasattr(B, "act_scale"): B.act_scale.mul_(s_)
+    for A in As: A.cpu()
+    for B in Bs: B.cpu()
+
+@torch.no_grad()
+def smooth_fn_sinkhorn(As, Bs, device=None, chunk_size=32):
+    if device is None: device = get_device()
+    for A in As: A.to(device)
+    for B in Bs: B.to(device)
+    
+    dim = Bs[0].weight.shape[-1]
+    num_chunks = (dim + chunk_size - 1) // chunk_size
+    chunks = [slice(i * chunk_size, min((i + 1) * chunk_size, dim)) for i in range(num_chunks)]
+    H = As[0].rot_mat.to(device) if hasattr(As[0], "rot_mat") else None
+    
+    w_b = torch.concat([B.weight for B in Bs]).float()
+    if hasattr(Bs[0], "act_scale"): w_b.mul_(Bs[0].act_scale.pow(0.1))
+
+    s = []
+    for i in range(dim // chunk_size):
+        u, K, v = sinkhorn(w_b[:,i*chunk_size:(i+1)*chunk_size])
+        s.append(v)
+
+    s = torch.concat(s)
+    print(s)
     s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
     for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
     for B in Bs:
@@ -338,25 +367,27 @@ def flip_sign(As, Bs, n_iterations=100, a=None, b=None, device=None, chunk_size=
     for B in Bs: B.cpu()
 
 @torch.no_grad() 
-def smooth_fn(As, Bs, n_iterations=500, a=None, b=None, device=None, chunk_size=32, step_size=0.01, mode="pow", **kwargs):
+def smooth_fn(As, Bs, n_iterations=500, device=None, chunk_size=32, step_size=0.01, mode="pow", **kwargs):
     parts = re.split(r"[.,+]", mode)
     for m in parts:
         if "pow" in m:
-            smooth_fn_pow(As, Bs, a, b, device, chunk_size)
+            smooth_fn_pow(As, Bs, device, chunk_size)
         if "greedy" in m:
-            smooth_fn_greedy(As, Bs, n_iterations, a, b, device, chunk_size, step_size=step_size)
+            smooth_fn_greedy(As, Bs, n_iterations, device, chunk_size, step_size=step_size)
         if "flip_sign" in m:
-            flip_sign(As, Bs, 300, a, b, device, chunk_size)
+            flip_sign(As, Bs, 300, device, chunk_size)
         if "iter" in m:
-            smooth_fn_iter(As, Bs, 10, a, b, device, chunk_size)
-    # smooth_fn_greedy(As, Bs, 100, a, b, device, chunk_size, step_size=step_size * 4)
-    # smooth_fn_greedy(As, Bs, 100, a, b, device, chunk_size, step_size=step_size)
-    # smooth_fn_pow(As, Bs, a, b, device, chunk_size)
+            smooth_fn_iter(As, Bs, 10, device, chunk_size)
+        if "sinkhorn" in m:
+            smooth_fn_sinkhorn(As, Bs, device, chunk_size)
+    # smooth_fn_greedy(As, Bs, 100, device, chunk_size, step_size=step_size * 4)
+    # smooth_fn_greedy(As, Bs, 100, device, chunk_size, step_size=step_size)
+    # smooth_fn_pow(As, Bs, device, chunk_size)
 
-def smooth_qkv(layer, a, b, **kwargs):
+def smooth_qkv(layer, **kwargs):
     norm = get_pre_norm(layer)
     qkv = [get_q(layer), get_k(layer), get_v(layer)]
-    smooth_fn([norm], qkv, a=a, b=b, **kwargs)
+    smooth_fn([norm], qkv, **kwargs)
 
 @torch.no_grad()
 def smooth_vo(layer, a=0.5, b=0.5, **kwargs):
@@ -381,27 +412,27 @@ def smooth_vo(layer, a=0.5, b=0.5, **kwargs):
     v.to("cpu")
     o.to("cpu")
 
-def smooth_mlp(layer, a, b, up_down=True, **kwargs):
+def smooth_mlp(layer, up_down=True, **kwargs):
     norm = get_post_norm(layer)
     up, gate, down = get_up(layer), get_gate(layer), get_down(layer)
-    smooth_fn([norm], [up, gate], a=a, b=b, **kwargs)
-    if up_down: smooth_fn([up], [down], a=a, b=b, **kwargs)
+    smooth_fn([norm], [up, gate], **kwargs)
+    if up_down: smooth_fn([up], [down], **kwargs)
 
-def smooth_head(model, a, b, **kwargs):
+def smooth_head(model, **kwargs):
     norm = get_head_norm(model)
     head = get_head(model)
-    smooth_fn([norm], [head], a=a, b=b, **kwargs)
+    smooth_fn([norm], [head], **kwargs)
 
-def apply_smooth(model, a=0., b=0.5, device=None, vo=True, **kwargs):
+def apply_smooth(model, device=None, vo=True, **kwargs):
     device = get_device()
     model.cpu()
     layers = get_layers(model)
     for i, l in enumerate(layers):
         # if i < len(layers) - 20: continue
         l.to(device)
-        smooth_mlp(l, a, b, **kwargs)
-        smooth_qkv(l, a, b, **kwargs)
+        smooth_mlp(l, **kwargs)
+        smooth_qkv(l, **kwargs)
         if vo: smooth_vo(l)
         l.cpu()
     if get_embed(model).weight is not get_head(model).weight:
-        smooth_head(model, a, b, **kwargs)
+        smooth_head(model, **kwargs)

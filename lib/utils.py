@@ -149,9 +149,10 @@ def calc_quantize_error(model, sz=32, H=None):
     def register(m, labels, nbits=4, norm=None, t=False):
         if norm is None: err = q_err(m, nbits, t=t, sz=sz, H=H)
         else:
+            err = q_err(m, nbits, scale=norm.weight, t=t, sz=sz, H=H)
             # act_scale = norm.act_scale.to(norm.weight.device)
             # err = q_err(m, nbits, scale=norm.weight, act_scale=act_scale, t=t, sz=sz, H=H)
-            err = q_err(m, nbits, act_scale=m.act_scale, t=t, sz=sz, H=H)
+            # err = q_err(m, nbits, act_scale=m.act_scale, t=t, sz=sz, H=H)
         result["!SUM"] += err.sum().item()
         for e in labels:
             if e not in result: result[e] = err.sum().item()
@@ -309,14 +310,85 @@ class LargeMatrixDataset(torch.utils.data.Dataset):
 def grad_change(x, grad):
     return x.detach() + grad - grad.detach()
 
-def sinkhorn(K, r=None, c=None, n_iter=50, eps=1e-9):
-    n = K.shape[0]
-    if r is None: r = torch.ones(n, device=K.device) / n
-    if c is None: c = torch.ones(n, device=K.device) / n
+def _sinkhorn(K, r=None, c=None, n_iter=50, eps=1e-9):
+    nr, nc = K.shape
+    if r is None: r = torch.ones(nr, device=K.device) / nr
+    if c is None: c = torch.ones(nc, device=K.device) / nc
     u = torch.ones_like(r)
     v = torch.ones_like(c)
     for _ in range(n_iter):
         u = r / (K @ v + eps)
         v = c / (K.T @ u + eps)
-    P = torch.diag(u) @ K @ torch.diag(v)
-    return P
+    return u, K, v
+
+def sinkhorn(matrix,
+                 order=8,
+                 clip_min=1e-3,
+                 clip_max=1e3,
+                 eps=1e-6,
+                 stop_on_increasing_imbalance=True):
+    """
+    vmap-friendly Sinkhorn that returns *the* mu1 / mu2 corresponding
+    to the matrix with the minimal imbalance encountered during the
+    iteration.
+
+    The return value is a tuple
+        (scaled_matrix, mu1_at_minimum, mu2_at_minimum)
+    """
+    dtype = torch.float32
+    m = matrix.to(dtype)
+    dev = m.device
+    measure = torch.std
+
+    def imbalance(mat):
+        s1, s2 = measure(mat, 1), measure(mat, 0)
+        s_min = torch.minimum(s1.min(), s2.min()).clamp_min(1e-12)
+        s_max = torch.maximum(s1.max(), s2.max())
+        return s_max / s_min          # scalar
+
+    imb_min = torch.tensor(float('inf'), dtype=dtype, device=dev)
+    gate    = torch.tensor(0.0, dtype=dtype, device=dev)
+
+    tgt_small = torch.minimum(
+        m.std(1).clamp(clip_min, clip_max).min(),
+        m.std(0).clamp(clip_min, clip_max).min()
+    ) + eps
+
+    log_mu1 = torch.zeros(m.shape[1], dtype=dtype, device=dev)
+    log_mu2 = torch.zeros(m.shape[0], 1, dtype=dtype, device=dev)
+
+    # Known-good candidates for the step k=0
+    cur0          = m
+    ib0           = imbalance(cur0)
+    imb_min       = torch.minimum(imb_min, ib0)
+    mu1_star      = log_mu1.exp().clone()
+    mu2_star      = log_mu2.exp().clone()
+
+    for _ in range(order):
+        cur       = (m / log_mu1.exp()) / log_mu2.exp()
+        ib        = imbalance(cur)
+
+        # update the best-so-far candidates
+        better    = (ib <= imb_min).to(dtype)   # 1 if new best
+        imb_min   = torch.min(imb_min, ib)
+        mu1_star  = torch.where(better.bool(), log_mu1.exp(), mu1_star)
+        mu2_star  = torch.where(better.bool(), log_mu2.exp(), mu2_star)
+
+        # early-exit condition
+        if stop_on_increasing_imbalance:
+            rising = (ib > imb_min).to(dtype)
+            gate   = torch.clip(gate + rising, max=1.0)   # once 1 → always 1
+
+        # still-running samples update the dual variables
+        g  = 1.0 - gate
+
+        std_r  = measure(cur, 1).clamp(clip_min, clip_max)
+        std_c  = measure(cur,0).clamp(clip_min, clip_max)
+
+        sal_col = (std_c / tgt_small).clamp(0.7, 2.0).log()
+        sal_row = (std_r[:, None] / tgt_small).clamp(0.7, 2.0).log()
+
+        log_mu1 = (log_mu1 + (sal_col * g)).clip(-.3, 10.)
+        log_mu2 = (log_mu2 + (sal_row * g)).clip(-.3, 10.)
+
+    return mu2_star, m, mu1_star

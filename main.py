@@ -92,7 +92,7 @@ def main():
     # stat_act(model, tokenizer, num_samples=1, seq_len=5)
     # apply_rotate(model)
     # apply_smooth(model, mode="pow", up_down=False, vo=False)
-    apply_smooth(model, mode="iter", up_down=False, vo=False)
+    apply_smooth(model, mode="sinkhorn", up_down=False, vo=False)
     # apply_smooth(model, mode="pow+flip_sign")
 
     # apply_config(model)
@@ -102,7 +102,7 @@ def main():
     # apply_rotate_vo(model)
     # apply_smooth(model)
 
-    stat_act(model, tokenizer, num_samples=1, seq_len=5)
+    # stat_act(model, tokenizer, num_samples=1, seq_len=5)
     after = calc_quantize_error(model)
     apply_quantize(model)
     undivide(model)
