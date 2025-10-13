@@ -9,7 +9,7 @@ def get_default_dataset(tokenizer):
     return tokenizer("\n\n".join(testdata['text']), return_tensors='pt')
 
 @torch.no_grad()
-def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None, min_v=None, max_v=None):
+def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None, min_v=None, max_v=None, calc_H=False):
     if dataset is None: dataset = get_default_dataset(tokenizer)
     if seq_len is None: seq_len = model.seqlen
     prev_device = model.device
@@ -17,18 +17,24 @@ def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None, min_v
     model.to(device)
     layers = get_layers(model)
     act_scales = {}
+    Hs = {}
     cnt = {}
     
     def stat_tensor(name, tensor):
         hidden_dim = tensor.shape[-1]
+        batch_sz = tensor.shape[0]
+        if calc_H: H = tensor @ tensor.transpose(-1, -2)
         tensor = tensor.view(-1, hidden_dim).abs().detach()
         comming_l2 = tensor.abs().double().pow(2).mean(dim=0).sqrt().float()
         if name in act_scales:
-            act_scales[name] = (act_scales[name].double().pow(2)*cnt[name]/(cnt[name]+1) + comming_l2.double().pow(2)/(cnt[name]+1)).sqrt().float()
-            cnt[name] += 1
+            nx_cnt = cnt[name] + batch_sz
+            act_scales[name] = (act_scales[name].double().pow(2)*cnt[name]/nx_cnt + comming_l2.double().pow(2)/nx_cnt).sqrt().float()
+            if calc_H: Hs[name] = Hs[name] * cnt[name]/nx_cnt + H
+            cnt[name] = nx_cnt
         else:
             act_scales[name] = comming_l2
-            cnt[name] = 1
+            if calc_H: Hs[name] = H
+            cnt[name] = batch_sz
 
     
     def stat_input_hook(m, x, y, name):
@@ -67,12 +73,10 @@ def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None, min_v
     for name, m in model.named_modules():
         if isinstance(m, target_class):
             t = act_scales[name]
-            # t = t / t.abs().mean()
-            # t = 1 + t.sigmoid()
-            # print(name, t)
             if min_v is not None or max_v is not None:
                 t = torch.clamp(t, min_v, max_v)
             m.act_scale = t
+            if calc_H:  m.H = Hs[name]
 
     model.to(prev_device)
     return act_scales
