@@ -91,7 +91,7 @@ def main():
     # apply_rotate_optim_v2(model)
     # stat_act(model, tokenizer, num_samples=1, seq_len=5)
     # apply_rotate(model)
-    apply_smooth(model, mode="pow")
+    apply_smooth(model, mode="pow", up_down=False, vo=False)
     # apply_smooth(model, mode="pow+flip_sign")
 
     # apply_config(model)

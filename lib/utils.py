@@ -111,7 +111,7 @@ def quantize(w, nbits=4, group_sz=32, ste=False):
     w_q = round_fn(w.sub(min_v).div(s)).clamp(0, Qp).mul(s).add(min_v).reshape(shape).to(dtype)
     return w_q, s
 
-def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shrink=True, ste=False, quadratic=False, hamiltonian=None):
+def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shrink=True, ste=False, quadratic=True, hamiltonian=None):
     w = m.weight if hasattr(m, "weight") else m
     w_q, s = quantize(w, nbits, ste=ste)
     delta = w_q - w
@@ -132,7 +132,8 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
     loss = delta.pow(2).mean(dim=0)#.sqrt()
     if quadratic:
         if hamiltonian is not None and t is False:
-            loss = delta @ hamiltonian.to(delta.device) @ delta.transpose(-1, -2)
+            loss = (delta @ hamiltonian.to(delta.device).float() @ delta.transpose(-1, -2)).mean(dim=0)
+            # print(loss.shape)
         # loss += delta.mean(dim=0).abs().mean()
     if o_shrink:
         loss = loss.reshape(-1, sz).mean(dim=-1)
