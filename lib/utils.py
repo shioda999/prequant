@@ -118,8 +118,8 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
     delta2 = delta
     if scale is not None:
         delta = delta.mul(scale.weight if hasattr(scale, "weight") else scale)
-    # if act_scale is not None:
-    #     delta = delta.mul(act_scale.to(delta.device))
+    if act_scale is not None:
+        delta = delta.mul(act_scale.to(delta.device))
     if t is True:
         delta = delta.T
         delta2 = delta2.T
@@ -132,11 +132,7 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
     loss = delta.pow(2).mean(dim=0)#.sqrt()
     if quadratic:
         if hamiltonian is not None and t is False:
-            # print(delta.shape)
-            # print(hamiltonian.shape)
             loss = (delta @ hamiltonian.to(delta.device).float() * delta).mean(dim=0)
-            # print(loss.shape)
-        # loss += delta.mean(dim=0).abs().mean()
     if o_shrink:
         loss = loss.reshape(-1, sz).mean(dim=-1)
     return loss
