@@ -8,7 +8,8 @@ import random
 @torch.no_grad()
 def _smooth_fn(As, Bs, p=2, a=0., b=0.5):
     sa = torch.concat([normalize(A.weight)[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(p).mean(dim=1).pow(1/p)
-    sb = torch.concat([normalize(B.weight) for B in Bs]).reshape(-1, Bs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p)
+    sb = torch.concat([normalize(B.weight) for B in Bs]).reshape(-1, Bs[0].weight.shape[-1]).abs().pow(p).sum(dim=0).pow(1/p)
+    sb = sb / sb.shape[0]
     s = sa.pow(-a) * sb.pow(b)
     s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
     for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
@@ -235,7 +236,8 @@ def _smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32):
         return r.pow(p[:,None].expand(-1, chunk_size).reshape(-1)) * r2.pow(p2[:,None].expand(-1, chunk_size).reshape(-1)), loss
 
     p = 2
-    r = torch.concat([normalize(B.weight) for B in Bs]).reshape(-1, Bs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p)
+    r = torch.concat([normalize(B.weight) for B in Bs]).reshape(-1, Bs[0].weight.shape[-1]).abs().pow(p).sum(dim=0).pow(1/p)
+    r = r / r.shape[0]
     r2 = 1 / Bs[0].act_scale
 
     s, loss = calc_minimum_loss(r, r2)
@@ -358,8 +360,8 @@ def smooth_vo(layer, a=0.5, b=0.5, **kwargs):
     w_o = w_o.reshape(w_o.shape[0],-1,ratio,head_dim).transpose(1,2).reshape(ratio*w_o.shape[0],-1)
     
     p = 2
-    s_v = normalize(w_v).abs().pow(p).mean(dim=1).pow(1/p)
-    s_o = normalize(w_o).abs().pow(p).mean(dim=0).pow(1/p)
+    s_v = normalize(w_v).abs().pow(p).sum(dim=1).pow(1/p)
+    s_o = normalize(w_o).abs().pow(p).sum(dim=0).pow(1/p)
     s = s_v.pow(a) / s_o.pow(b)
 
     v.weight.data = v.weight.div(s[:,None]).to(w_v.dtype)

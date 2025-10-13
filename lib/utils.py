@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 @torch.no_grad()
 def normalize(A):
-    return A.float().div(A.float().pow(2).mean().sqrt())
+    return A.float().div(A.float().pow(2).sum().sqrt().div(A.shape[0]))
 
 def random_rotation_matrix(dim: int, device):
     A = torch.randn(dim, dim)
@@ -121,7 +121,7 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
         delta2 = delta
     if act_scale is not None:
         delta = delta.mul(act_scale.to(delta.device))
-        delta2.mul_(act_scale.to(delta.device).abs().mean())
+        delta2.mul_(act_scale.to(delta.device).pow(2).sum().sqrt()/act_scale.shape[0])
     if t is True:
         delta = delta.T
         delta2 = delta2.T
@@ -210,7 +210,8 @@ def fuse_norm(norm, fcs):
 @torch.no_grad()
 def smooth_defuse_norm(norm, fcs, p=2):
     # s = norm.prev_weight.reshape(sz, -1).abs().mean(dim=0)[None].expand((sz, -1)).reshape(-1).sqrt()
-    s = torch.concat([normalize(fc.weight.data) for fc in fcs]).reshape(-1, fcs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p).pow(0.5)
+    s = torch.concat([normalize(fc.weight.data) for fc in fcs]).reshape(-1, fcs[0].weight.shape[-1]).abs().pow(p).sum(dim=0)
+    s = s.pow(1/p).div(s.shape[0])#.pow(0.5)
     for fc in fcs:
         fc.weight.data = fc.weight.data.float().div(s).to(fc.prev_dtype)
         del fc.prev_dtype
@@ -253,7 +254,7 @@ def apply_quantize(model):
 @torch.no_grad()
 def calc_metric(m, t=False):
     w = m.weight if not t else m.weight.T
-    t = w.abs().pow(2).mean(dim=0).sqrt()
+    t = w.abs().pow(2).sum(dim=0).sqrt().div(t.shape[0])
     return t / t.mean()
 
 def get_device():
