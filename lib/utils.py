@@ -139,7 +139,7 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
         #     delta = delta.mul(act_scale.to(delta.device).abs().mean())
         # loss += delta.abs().mean()
         # print("mean", delta2.mean(dim=0))
-        loss += delta.mean(dim=0).mul(delta2.sum(dim=0)).abs().mean()#.sqrt()
+        loss += delta.mean(dim=0).abs().mean()#.sqrt()
         # loss += delta.mean().pow(2).sqrt()
     if o_shrink:
         loss = loss.reshape(-1, sz).mean(dim=-1)
