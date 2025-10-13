@@ -122,10 +122,12 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
         delta = delta.mul(act_scale.to(delta.device))
     if t is True:
         delta = delta.T
+        delta2 = delta2.T
     if H is not None:
         delta = (delta.reshape(-1, H.shape[0]).float() @ H.T).reshape(delta.shape)
         # delta = (delta.reshape(-1, H.shape[0]).float() @ H).reshape(delta.shape)
     delta = delta.float()
+    delta2 = delta2.float()
     # loss = delta.float().pow(2).mean(dim=0)
     loss = delta.pow(2).mean(dim=0)#.sqrt()
     if quadratic:
