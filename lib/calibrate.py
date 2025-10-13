@@ -76,7 +76,7 @@ def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None, min_v
             if min_v is not None or max_v is not None:
                 t = torch.clamp(t, min_v, max_v)
             m.act_scale = t
-            if calc_H:  m.H = Hs[name]
+            if calc_H: m.H = Hs[name].cpu()
 
     model.to(prev_device)
     return act_scales

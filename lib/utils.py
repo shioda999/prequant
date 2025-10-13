@@ -132,7 +132,7 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
     loss = delta.pow(2).mean(dim=0)#.sqrt()
     if quadratic:
         if hamiltonian is not None and t is False:
-            loss += delta2 @ hamiltonian @ delta2.transpose(-1, -2)
+            loss += delta2 @ hamiltonian.to(delta.device) @ delta2.transpose(-1, -2)
         # loss += delta.mean(dim=0).abs().mean()
     if o_shrink:
         loss = loss.reshape(-1, sz).mean(dim=-1)
