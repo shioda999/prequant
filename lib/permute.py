@@ -61,19 +61,28 @@ def permute_mlp_v2(layer, perm_func):
     for e in [up, gate]: permute_r(e, perm)
     permute(down, perm)
 
-def permute_mlp_v3(layer):
+@torch.no_grad()
+def permute_mlp_v3(layer, div=1, group_sz=32):
     up, gate, down = get_up(layer), get_gate(layer), get_down(layer)
-    w = down.weight
+    w = down.weight.abs()
     w /= w.norm(dim=-1, keepdim=True)
     sim = w.transpose(-1,-2) @ w # (D, D)
-    D = sim.shape[-1]
-    perm = torch.zeros((D,), device=w.device).int()
-    for _ in range(D):
-        idx = sim.argmax().item()
-        row, col = idx // D, idx % D
-        sim[row,:] = -torch.inf
-        sim[:,col] = -torch.inf
-        perm[col] = row
+    D = sim.shape[-1] // div
+    sim += torch.eye(D * div, device=w.device) * -torch.inf
+    sim = torch.stack([sim[D*i:D*i+D,D*i:D*i+D] for i in range(div)])
+    perm = torch.zeros((D * div,), device=w.device).int()
+    for i in range(div):
+        for j in range(D // group_sz):
+            idx = sim[i].argmax().item()
+            row, col = idx // D, idx % D
+            group_idx = sim[i,row].topk(group_sz-1)[1]
+            group_idx = torch.concat([torch.tensor([row], device=w.device), group_idx])
+            # print(group_idx)
+            sim[i,group_idx,:] = -torch.inf
+            sim[i,:,group_idx] = -torch.inf
+            perm[j*group_sz:(j+1)*group_sz] = group_idx + i * D
+    print(torch.allclose(torch.arange(D*div, device=w.device).to(perm.dtype), torch.sort(perm)[0]))
+    print(torch.sort(perm)[0])
     for e in [up, gate]: permute_r(e, perm)
     permute(down, perm)
 
@@ -108,10 +117,11 @@ def apply_permute(model, m=1):
     model.lm_head.weight = torch.nn.Parameter(model.lm_head.weight)
     perm_func = [get_perm, get_perm_v2, get_perm_v3][m]
     layers = get_layers(model)
-    for l in layers:
+    for i, l in enumerate(layers):
         permute_vo(l, perm_func)
         # permute_mlp_v2(l, perm_func)
         permute_mlp_v3(l)
+        print(f"layer.{i}")
 
 @torch.no_grad()
 def apply_global_permute(model, perm):
