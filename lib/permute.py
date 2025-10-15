@@ -61,6 +61,22 @@ def permute_mlp_v2(layer, perm_func):
     for e in [up, gate]: permute_r(e, perm)
     permute(down, perm)
 
+def permute_mlp_v3(layer):
+    up, gate, down = get_up(layer), get_gate(layer), get_down(layer)
+    w = down.weight
+    w /= w.norm(dim=-1, keepdim=True)
+    sim = w.transpose(-1,-2) @ w # (D, D)
+    D = sim.shape[-1]
+    perm = torch.zeros((D,), device=w.device).int()
+    for _ in range(D):
+        idx = sim.argmax().item()
+        row, col = idx // D, idx % D
+        sim[row,:] = -torch.inf
+        sim[:,col] = -torch.inf
+        perm[col] = row
+    for e in [up, gate]: permute_r(e, perm)
+    permute(down, perm)
+
 def permute_head(model, perm):
     for e in [get_head_norm(model), get_head(model)]:
         permute(e, perm)
@@ -94,7 +110,8 @@ def apply_permute(model, m=1):
     layers = get_layers(model)
     for l in layers:
         permute_vo(l, perm_func)
-        permute_mlp_v2(l, perm_func)
+        # permute_mlp_v2(l, perm_func)
+        permute_mlp_v3(l, perm_func)
 
 @torch.no_grad()
 def apply_global_permute(model, perm):
