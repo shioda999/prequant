@@ -111,7 +111,7 @@ def apply_permute(model, m=1):
     for l in layers:
         permute_vo(l, perm_func)
         # permute_mlp_v2(l, perm_func)
-        permute_mlp_v3(l, perm_func)
+        permute_mlp_v3(l)
 
 @torch.no_grad()
 def apply_global_permute(model, perm):
