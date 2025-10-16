@@ -62,26 +62,24 @@ def permute_mlp_v2(layer, perm_func):
     permute(down, perm)
 
 @torch.no_grad()
-def permute_mlp_v3(layer, div=1, group_sz=32):
+def permute_mlp_v3(layer, group_sz=32):
     up, gate, down = get_up(layer), get_gate(layer), get_down(layer)
     w = down.weight.abs()
     w /= w.norm(dim=-1, keepdim=True)
     sim = w.transpose(-1,-2) @ w # (D, D)
-    D = sim.shape[-1] // div
-    sim += torch.eye(D * div, device=w.device) * -torch.inf
-    sim = torch.stack([sim[D*i:D*i+D,D*i:D*i+D] for i in range(div)])
-    perm = torch.zeros((D * div,), device=w.device).int()
-    for i in range(div):
-        for j in range(D // group_sz):
-            idx = sim[i].argmax().item()
-            row, col = idx // D, idx % D
-            group_idx = sim[i,row].topk(group_sz-1)[1]
-            group_idx = torch.concat([torch.tensor([row], device=w.device), group_idx])
-            # print(group_idx)
-            sim[i,group_idx,:] = -torch.inf
-            sim[i,:,group_idx] = -torch.inf
-            perm[j*group_sz:(j+1)*group_sz] = group_idx + i * D
-    print(torch.allclose(torch.arange(D*div, device=w.device).to(perm.dtype), torch.sort(perm)[0]))
+    D = sim.shape[-1]
+    sim += torch.eye(D, device=w.device) * -torch.inf
+    perm = torch.zeros((D,), device=w.device).int()
+    for j in range(D // group_sz):
+        idx = sim.argmax().item()
+        row, col = idx // D, idx % D
+        group_idx = sim[row].topk(group_sz-1)[1]
+        group_idx = torch.concat([torch.tensor([row], device=w.device), group_idx])
+        # print(group_idx)
+        sim[group_idx,:] = -torch.inf
+        sim[:,group_idx] = -torch.inf
+        perm[j*group_sz:(j+1)*group_sz] = group_idx
+    print(torch.allclose(torch.arange(D, device=w.device).to(perm.dtype), torch.sort(perm)[0]))
     print(torch.sort(perm)[0])
     for e in [up, gate]: permute_r(e, perm)
     permute(down, perm)
