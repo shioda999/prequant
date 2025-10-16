@@ -160,7 +160,8 @@ def smooth_fn_pow(As, Bs, device=None, chunk_size=32):
     if device is None: device = get_device()
     for A in As: A.to(device)
     for B in Bs: B.to(device)
-    Bs_scale = [B.weight.float().pow(2).mean().sqrt() for B in Bs]
+    Bs_scale = [B.weight.float().abs().mean() for B in Bs]
+    # Bs_scale = [B.weight.float().pow(2).mean().sqrt() for B in Bs]
     for B, s in zip(Bs, Bs_scale): B.weight.div_(s)
     
     dim = Bs[0].weight.shape[-1]
@@ -181,8 +182,8 @@ def smooth_fn_pow(As, Bs, device=None, chunk_size=32):
         return r.pow(p[:,None].expand(-1, chunk_size).reshape(-1)), loss
 
     p = 2
-    r = 1 / torch.concat([normalize(A.weight)[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(p).mean(dim=1).pow(1/p)
-    r2 = torch.concat([normalize(B.weight) for B in Bs]).reshape(-1, Bs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p)
+    r = 1 / torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(p).mean(dim=1).pow(1/p)
+    r2 = torch.concat([B.weight for B in Bs]).reshape(-1, Bs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p)
     
     s, loss = calc_minimum_loss(r)
     s2, loss2 = calc_minimum_loss(r2)
