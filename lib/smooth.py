@@ -282,21 +282,24 @@ def smooth_fn_pow(As, Bs, device=None, chunk_size=32):
     s = torch.where((loss < loss2)[:,None].expand(-1, chunk_size).reshape(-1), s, s2)
     loss = torch.where(loss < loss2, loss, loss2)
 
-    w_b = torch.concat([B.weight for B in Bs])
-    w_b = w_b.reshape(-1, chunk_size).float()
-    Qp = 2 ** 4 - 1
-    min_v = w_b.min(dim=1, keepdim=True)[0]
-    qs = (w_b.max(dim=1, keepdim=True)[0] - min_v) / Qp
-    r2 = w_b.sub(min_v).div(qs).mean(dim=0)
-    s2, loss2 = calc_minimum_loss(r2)
-    s = torch.where((loss < loss2)[:,None].expand(-1, chunk_size).reshape(-1), s, s2)
-    loss = torch.where(loss < loss2, loss, loss2)
-
-
     if hasattr(Bs[0], "act_scale"):
         s2, loss2 = calc_minimum_loss(1 / Bs[0].act_scale)
         s = torch.where((loss < loss2)[:,None].expand(-1, chunk_size).reshape(-1), s, s2)
         loss = torch.where(loss < loss2, loss, loss2)
+
+    w_b = torch.concat([B.weight for B in Bs])
+    w_b = w_b.reshape(-1, chunk_size).float()
+    Qp = 2 ** 4 - 1
+
+    for i in range(10):
+        min_v = w_b.min(dim=1, keepdim=True)[0]
+        qs = (w_b.max(dim=1, keepdim=True)[0] - min_v) / Qp
+        r2 = w_b.sub(min_v).div(qs).mean(dim=0)
+        if i > 0: r2 = r2 * s
+        s2, loss2 = calc_minimum_loss(r2)
+        s = torch.where((loss < loss2)[:,None].expand(-1, chunk_size).reshape(-1), s, s2)
+        loss = torch.where(loss < loss2, loss, loss2)
+        w_b = w_b / s
 
     print(s)
     s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
