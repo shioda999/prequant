@@ -160,13 +160,13 @@ def calc_quantize_error(model, sz=32, H=None):
     layers = get_layers(model)
     for i, l in enumerate(layers):
         pre_norm, post_norm = get_pre_norm(l), get_post_norm(l)
-        register(get_q(l), ["q", f"{i:02}"], norm=pre_norm)
-        register(get_k(l), ["k", f"{i:02}"], norm=pre_norm)
-        register(get_v(l), ["v", f"{i:02}"], 6, norm=pre_norm)
-        register(get_o(l), ["o", f"{i:02}"], t=True)
-        register(get_gate(l), ["gate", f"{i:02}"], norm=post_norm)
-        register(get_up(l), ["up", f"{i:02}"], norm=post_norm)
-        register(get_down(l), ["down", f"{i:02}"], 6, t=True)
+        register(get_q(l), ["q", f"{i:02}.q"], norm=pre_norm)
+        register(get_k(l), ["k", f"{i:02}.k"], norm=pre_norm)
+        register(get_v(l), ["v", f"{i:02}.v"], 6, norm=pre_norm)
+        register(get_o(l), ["o", f"{i:02}.o"], t=True)
+        register(get_gate(l), ["gate", f"{i:02}.gate"], norm=post_norm)
+        register(get_up(l), ["up", f"{i:02}.up"], norm=post_norm)
+        register(get_down(l), ["down", f"{i:02}.down"], 6, t=True)
     register(get_head(model), ["head"], norm=get_head_norm(model))
 
     return result

@@ -105,14 +105,14 @@ def quantization_loss_for_smooth(As, Bs, num_chunks, H, s):
         sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
         for i, B in enumerate(Bs):
             hamiltonian = getattr(B, "H", None)
-            # loss += q_err(B.weight / s, scale=s, act_scale=B.act_scale, o_shrink=False, H=H, hamiltonian=hamiltonian).reshape(-1, B.weight.shape[-1]).sum(dim=0)
-            losses.append(q_err(B.weight / s, scale=s, act_scale=B.act_scale, o_shrink=False, H=H, hamiltonian=hamiltonian).reshape(-1, B.weight.shape[-1]).sum(dim=0))
+            loss += q_err(B.weight / s, scale=s, act_scale=B.act_scale, o_shrink=False, H=H, hamiltonian=hamiltonian).reshape(-1, B.weight.shape[-1]).sum(dim=0)
+            # losses.append(q_err(B.weight / s, scale=s, act_scale=B.act_scale, o_shrink=False, H=H, hamiltonian=hamiltonian).reshape(-1, B.weight.shape[-1]).sum(dim=0))
     else:
         sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
         # if len(As[0].weight.shape) > 1:
         #     for A in As: loss += q_err(A.weight * s[:,None], scale=1/s[:,None], o_shrink=False, H=H).reshape(A.weight.shape[0],-1).sum(dim=1)
         for B in Bs: loss += q_err(B.weight / s, scale=s, o_shrink=False, H=H).reshape(-1, B.weight.shape[-1]).sum(dim=0)
-    loss = torch.stack(losses).max(dim=0)[0]
+    # loss = torch.stack(losses).max(dim=0)[0]
     return loss.reshape(num_chunks, -1).sum(dim=1)
 
 @torch.no_grad() 
