@@ -389,11 +389,11 @@ def flip_sign(As, Bs, n_iterations=100, a=None, b=None, device=None, chunk_size=
     for B in Bs: B.cpu()
 
 @torch.no_grad() 
-def smooth_fn(As, Bs, n_iterations=500, device=None, chunk_size=32, step_size=0.01, mode="pow", **kwargs):
+def smooth_fn(As, Bs, n_iterations=500, device=None, chunk_size=32, step_size=0.01, mode="pow", importance=None, **kwargs):
     parts = re.split(r"[.,+]", mode)
     for m in parts:
         if "pow" in m:
-            smooth_fn_pow(As, Bs, device, chunk_size)
+            smooth_fn_pow(As, Bs, device, chunk_size, importance=importance)
         if "greedy" in m:
             smooth_fn_greedy(As, Bs, n_iterations, device, chunk_size, step_size=step_size)
         if "flip_sign" in m:
