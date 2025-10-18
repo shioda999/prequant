@@ -163,7 +163,7 @@ def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None):
     for A in As: A.to(device)
     for B in Bs: B.to(device)
     # Bs_scale = [B.weight.float().abs().mean() for B in Bs]
-    if importance is None: importance = [10 if i == len(Bs) - 1 else 1 for i in range(len(Bs))]
+    if importance is None: importance = [0.1 if i == len(Bs) - 1 else 1 for i in range(len(Bs))]
     Bs_scale = [B.weight.float().pow(2).mean().sqrt() * imp for B, imp in zip(Bs, importance)]
     for B, s in zip(Bs, Bs_scale): B.weight.div_(s)
     
