@@ -164,7 +164,7 @@ def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_ac
     for B in Bs: B.to(device)
     if ignore_act_scale and hasattr(Bs[0], "act_scale"):
         tmp_B_act_scale = [B.act_scale.clone() for B in Bs]
-        for B in Bs: B.act_scale = torch.ones_like(B.act_scale)
+        for B in Bs: del B.act_scale
     p = 3
     # Bs_scale = [B.weight.float().abs().mean() for B in Bs]
     if importance is None: importance = [1 if i == len(Bs) - 1 else 1 for i in range(len(Bs))]
@@ -440,7 +440,7 @@ def smooth_vo(layer, a=0.5, b=0.5, **kwargs):
 def smooth_mlp(layer, up_down=True, **kwargs):
     norm = get_post_norm(layer)
     up, gate, down = get_up(layer), get_gate(layer), get_down(layer)
-    smooth_fn([norm], [up, gate], importance=[1.,10.], ignore_act_scale=True,  **kwargs)
+    smooth_fn([norm], [up, gate], importance=[1.,1.], ignore_act_scale=True,  **kwargs)
     if up_down: smooth_fn([up], [down], **kwargs)
 
 def smooth_head(model, **kwargs):
