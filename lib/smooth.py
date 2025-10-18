@@ -442,15 +442,15 @@ def smooth_head(model, **kwargs):
     head = get_head(model)
     smooth_fn([norm], [head], **kwargs)
 
-def apply_smooth(model, device=None, vo=True, **kwargs):
+def apply_smooth(model, device=None, qkv=True, mlp=True, vo=True, **kwargs):
     device = get_device()
     model.cpu()
     layers = get_layers(model)
     for i, l in enumerate(layers):
         # if i < len(layers) - 20: continue
         l.to(device)
-        smooth_mlp(l, **kwargs)
-        smooth_qkv(l, **kwargs)
+        if mlp: smooth_mlp(l, **kwargs)
+        if qkv: smooth_qkv(l, **kwargs)
         if vo: smooth_vo(l)
         l.cpu()
     if get_embed(model).weight is not get_head(model).weight:
