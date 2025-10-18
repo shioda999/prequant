@@ -389,20 +389,17 @@ def flip_sign(As, Bs, n_iterations=100, a=None, b=None, device=None, chunk_size=
     for B in Bs: B.cpu()
 
 @torch.no_grad() 
-def smooth_fn(As, Bs, n_iterations=500, device=None, chunk_size=32, step_size=0.01, mode="pow", **kwargs):
+def smooth_fn(As, Bs, mode="pow", **kwargs):
     parts = re.split(r"[.,+]", mode)
     for m in parts:
         if "pow" in m:
-            smooth_fn_pow(As, Bs, device, chunk_size)
+            smooth_fn_pow(As, Bs, **kwargs)
         if "greedy" in m:
-            smooth_fn_greedy(As, Bs, n_iterations, device, chunk_size, step_size=step_size)
+            smooth_fn_greedy(As, Bs, **kwargs)
         if "flip_sign" in m:
-            flip_sign(As, Bs, 300, device, chunk_size)
+            flip_sign(As, Bs, 300, **kwargs)
         if "sinkhorn" in m:
-            smooth_fn_sinkhorn(As, Bs, device, chunk_size)
-    # smooth_fn_greedy(As, Bs, 100, device, chunk_size, step_size=step_size * 4)
-    # smooth_fn_greedy(As, Bs, 100, device, chunk_size, step_size=step_size)
-    # smooth_fn_pow(As, Bs, device, chunk_size)
+            smooth_fn_sinkhorn(As, Bs, **kwargs)
 
 def smooth_qkv(layer, **kwargs):
     norm = get_pre_norm(layer)
@@ -448,7 +445,7 @@ def apply_smooth(model, device=None, qkv=True, mlp=True, vo=True, **kwargs):
     model.cpu()
     layers = get_layers(model)
     for i, l in enumerate(layers):
-        # if i < len(layers) - 20: continue
+        if i < len(layers) - 20: continue
         l.to(device)
         if mlp: smooth_mlp(l, **kwargs)
         if qkv: smooth_qkv(l, **kwargs)
