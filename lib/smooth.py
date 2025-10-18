@@ -443,12 +443,12 @@ def smooth_head(model, **kwargs):
     head = get_head(model)
     smooth_fn([norm], [head], **kwargs)
 
-def apply_smooth(model, device=None, qkv=True, mlp=True, vo=True, **kwargs):
+def apply_smooth(model, device=None, qkv=True, mlp=True, vo=True, ealry=False, **kwargs):
     device = get_device()
     model.cpu()
     layers = get_layers(model)
     for i, l in enumerate(layers):
-        if i < len(layers) - 20: continue
+        if ealry and i < len(layers) - 20: continue
         l.to(device)
         if mlp: smooth_mlp(l, **kwargs)
         if qkv: smooth_qkv(l, **kwargs)
