@@ -158,11 +158,11 @@ def smooth_fn_greedy(As, Bs, n_iterations=500, device=None, chunk_size=32, step_
     for B in Bs: B.cpu()
 
 @torch.no_grad()
-def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, igonore_act_scale=False):
+def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_act_scale=False):
     if device is None: device = get_device()
     for A in As: A.to(device)
     for B in Bs: B.to(device)
-    if igonore_act_scale and hasattr(Bs[0], "act_scale"):
+    if ignore_act_scale and hasattr(Bs[0], "act_scale"):
         tmp_B_act_scale = [B.act_scale.clone() for B in Bs]
         for B in Bs: B.act_scale = torch.ones_like(B.act_scale)
     p = 3
@@ -224,7 +224,7 @@ def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, igonore_a
         B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
         if hasattr(B, "act_scale"): B.act_scale.mul_(s)
     for B, s in zip(Bs, Bs_scale): B.weight.mul_(s)
-    if igonore_act_scale and hasattr(Bs[0], "act_scale"):
+    if ignore_act_scale and hasattr(Bs[0], "act_scale"):
         for B, act_s in zip(Bs, tmp_B_act_scale): B.act_scale = act_s
     for A in As: A.cpu()
     for B in Bs: B.cpu()
@@ -394,11 +394,11 @@ def flip_sign(As, Bs, n_iterations=100, a=None, b=None, device=None, chunk_size=
     for B in Bs: B.cpu()
 
 @torch.no_grad() 
-def smooth_fn(As, Bs, n_iterations=500, device=None, chunk_size=32, step_size=0.01, mode="pow", importance=None, igonore_act_scale=False, **kwargs):
+def smooth_fn(As, Bs, n_iterations=500, device=None, chunk_size=32, step_size=0.01, mode="pow", importance=None, ignore_act_scale=False, **kwargs):
     parts = re.split(r"[.,+]", mode)
     for m in parts:
         if "pow" in m:
-            smooth_fn_pow(As, Bs, device, chunk_size, importance=importance, igonore_act_scale=igonore_act_scale)
+            smooth_fn_pow(As, Bs, device, chunk_size, importance=importance, ignore_act_scale=ignore_act_scale)
         if "greedy" in m:
             smooth_fn_greedy(As, Bs, n_iterations, device, chunk_size, step_size=step_size)
         if "flip_sign" in m:
@@ -440,7 +440,7 @@ def smooth_vo(layer, a=0.5, b=0.5, **kwargs):
 def smooth_mlp(layer, up_down=True, **kwargs):
     norm = get_post_norm(layer)
     up, gate, down = get_up(layer), get_gate(layer), get_down(layer)
-    smooth_fn([norm], [up, gate], importance=[1.,10.], igonore_act_scale=True,  **kwargs)
+    smooth_fn([norm], [up, gate], importance=[1.,10.], ignore_act_scale=True,  **kwargs)
     if up_down: smooth_fn([up], [down], **kwargs)
 
 def smooth_head(model, **kwargs):
