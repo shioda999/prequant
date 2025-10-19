@@ -105,7 +105,7 @@ def quantization_loss_for_smooth(As, Bs, num_chunks, H, s):
         sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
         for i, B in enumerate(Bs):
             hamiltonian = getattr(B, "H", None)
-            loss += q_err(B.weight / s, scale=s * sa, act_scale=(B.act_scale/sa).sqrt(), o_shrink=False, H=H, hamiltonian=hamiltonian).reshape(-1, B.weight.shape[-1]).sum(dim=0)
+            loss += q_err(B.weight / s, scale=s * sa, act_scale=As[0].act_scale.sqrt(), o_shrink=False, H=H, hamiltonian=hamiltonian).reshape(-1, B.weight.shape[-1]).sum(dim=0)
             # loss += q_err(B.weight / s, scale=s, act_scale=B.act_scale, o_shrink=False, H=H, hamiltonian=hamiltonian).reshape(-1, B.weight.shape[-1]).sum(dim=0)
     else:
         sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
@@ -459,8 +459,8 @@ def smooth_vo(layer, a=0.5, b=0.5, **kwargs):
 def smooth_mlp(layer, up_down=True, **kwargs):
     norm = get_post_norm(layer)
     up, gate, down = get_up(layer), get_gate(layer), get_down(layer)
-    # smooth_fn([norm], [up, gate], ignore_act_scale=True,  **kwargs)
-    smooth_fn([norm], [up, gate], **kwargs)
+    smooth_fn([norm], [up, gate], ignore_act_scale=True,  **kwargs)
+    # smooth_fn([norm], [up, gate], **kwargs)
     if up_down: smooth_fn([up], [down], **kwargs)
 
 def smooth_head(model, **kwargs):
