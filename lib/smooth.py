@@ -196,7 +196,7 @@ def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_ac
         # s = torch.where((loss < loss2)[:,None].expand(-1, chunk_size).reshape(-1), s, s2)
         # loss = torch.where(loss < loss2, loss, loss2)
         
-        s2, loss2 = calc_minimum_loss(r / As[0].act_scale)
+        s2, loss2 = calc_minimum_loss(r / As[0].act_scale.sqrt())
         s = torch.where((loss < loss2)[:,None].expand(-1, chunk_size).reshape(-1), s, s2)
         loss = torch.where(loss < loss2, loss, loss2)
 
