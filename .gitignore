@@ -1,3 +1,4 @@
 venv/*
 *.safetensors
 model_smooth/*
+./xxx.txt
