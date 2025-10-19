@@ -158,7 +158,7 @@ def smooth_fn_greedy(As, Bs, n_iterations=500, device=None, chunk_size=32, step_
     for B in Bs: B.cpu()
 
 @torch.no_grad()
-def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_act_scale=False):
+def _smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_act_scale=False):
     if device is None: device = get_device()
     for A in As: A.to(device)
     for B in Bs: B.to(device)
@@ -230,7 +230,7 @@ def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_ac
     for B in Bs: B.cpu()
 
 @torch.no_grad()
-def _smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32, importance=None, ignore_act_scale=False):
+def smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32, importance=None, ignore_act_scale=False):
     if device is None: device = get_device()
     for A in As: A.to(device)
     for B in Bs: B.to(device)
