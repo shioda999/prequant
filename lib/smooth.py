@@ -101,7 +101,7 @@ def decide_step_size(s, index, chunk_idx, loss_fn, current_loss, init_step_size=
 def quantization_loss_for_smooth(As, Bs, num_chunks, H, s):
     loss = 0
     losses = []
-    if hasattr(As[0], "act_scale"):
+    if hasattr(Bs[0], "act_scale"):
         sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
         for i, B in enumerate(Bs):
             hamiltonian = getattr(B, "H", None)
@@ -430,8 +430,8 @@ def smooth_fn(As, Bs, n_iterations=500, device=None, chunk_size=32, step_size=0.
 def smooth_qkv(layer, **kwargs):
     norm = get_pre_norm(layer)
     qkv = [get_q(layer), get_k(layer), get_v(layer)]
-    smooth_fn([norm], qkv, ignore_act_scale=True, **kwargs)
-    # smooth_fn([norm], qkv, **kwargs)
+    # smooth_fn([norm], qkv, ignore_act_scale=True, **kwargs)
+    smooth_fn([norm], qkv, **kwargs)
 
 @torch.no_grad()
 def smooth_vo(layer, a=0.5, b=0.5, **kwargs):
