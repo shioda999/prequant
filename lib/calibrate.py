@@ -39,7 +39,7 @@ def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None, min_v
     
     def stat_input_hook(m, x, y, name):
         stat_tensor(name, x[0] if isinstance(x, tuple) else x)
-        # stat_tensor(name, y[0] if isinstance(y, tuple) else y)
+        stat_tensor(name + "_output", y[0] if isinstance(y, tuple) else y)
     
     hooks = []
     target_class = (get_head_norm(model).__class__,)
@@ -74,10 +74,8 @@ def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None, min_v
 
     for name, m in model.named_modules():
         if isinstance(m, target_class):
-            t = act_scales[name]
-            if min_v is not None or max_v is not None:
-                t = torch.clamp(t, min_v, max_v)
-            m.act_scale = t
+            m.act_scale = act_scales[name]
+            m.act_o_scale = act_scales[name + "_output"]
             if calc_H: m.H = Hs[name].cpu()
 
     model.to(prev_device)
