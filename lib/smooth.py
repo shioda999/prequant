@@ -101,7 +101,7 @@ def decide_step_size(s, index, chunk_idx, loss_fn, current_loss, init_step_size=
 def quantization_loss_for_smooth(As, Bs, num_chunks, H, s, ignore_act_scale=False):
     loss = 0
     losses = []
-    if hasattr(Bs[0], "act_scale") and ignore_act_scale is False:
+    if hasattr(As[0], "act_scale") and ignore_act_scale is False:
         sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
         for i, B in enumerate(Bs):
             hamiltonian = getattr(B, "H", None)
