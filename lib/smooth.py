@@ -413,8 +413,8 @@ def smooth_fn(As, Bs, n_iterations=500, device=None, chunk_size=32, step_size=0.
 def smooth_qkv(layer, **kwargs):
     norm = get_pre_norm(layer)
     qkv = [get_q(layer), get_k(layer), get_v(layer)]
-    # smooth_fn([norm], qkv, ignore_act_scale=True, **kwargs)
-    smooth_fn([norm], qkv, **kwargs)
+    smooth_fn([norm], qkv, ignore_act_scale=True, **kwargs)
+    # smooth_fn([norm], qkv, **kwargs)
 
 @torch.no_grad()
 def smooth_vo(layer, a=0.5, b=0.5, **kwargs):
