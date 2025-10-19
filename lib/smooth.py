@@ -202,21 +202,20 @@ def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_ac
     #     s = torch.where((loss < loss2)[:,None].expand(-1, chunk_size).reshape(-1), s, s2)
     #     loss = torch.where(loss < loss2, loss, loss2)
 
-    if hasattr(Bs[0], "act_scale") or ignore_act_scale:
-        r = tmp_B_act_scale[0] if ignore_act_scale else Bs[0].act_scale
-        s2, loss2 = calc_minimum_loss(1/ r)
+    if hasattr(Bs[0], "act_scale"):
+        s2, loss2 = calc_minimum_loss(1 / Bs[0].act_scale)
         s = torch.where((loss < loss2)[:,None].expand(-1, chunk_size).reshape(-1), s, s2)
         loss = torch.where(loss < loss2, loss, loss2)
 
-    w_b = torch.concat([B.weight for B in Bs]).float()
-    shape = w_b.shape
-    w_b = w_b.reshape(-1, chunk_size)
-    w_b = w_b - w_b.min(dim=1, keepdim=True)[0]
-    qs = w_b.max(dim=1, keepdim=True)[0]
-    r = w_b.div(qs).reshape(shape).mean(dim=0)
-    s2, loss2 = calc_minimum_loss(r)
-    s = torch.where((loss < loss2)[:,None].expand(-1, chunk_size).reshape(-1), s, s2)
-    loss = torch.where(loss < loss2, loss, loss2)
+    # w_b = torch.concat([B.weight for B in Bs]).float()
+    # shape = w_b.shape
+    # w_b = w_b.reshape(-1, chunk_size)
+    # w_b = w_b - w_b.min(dim=1, keepdim=True)[0]
+    # qs = w_b.max(dim=1, keepdim=True)[0]
+    # r = w_b.div(qs).reshape(shape).mean(dim=0)
+    # s2, loss2 = calc_minimum_loss(r)
+    # s = torch.where((loss < loss2)[:,None].expand(-1, chunk_size).reshape(-1), s, s2)
+    # loss = torch.where(loss < loss2, loss, loss2)
 
     print(s)
     s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
