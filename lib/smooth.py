@@ -158,7 +158,7 @@ def smooth_fn_greedy(As, Bs, n_iterations=500, device=None, chunk_size=32, step_
     for B in Bs: B.cpu()
 
 @torch.no_grad()
-def _smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_act_scale=False):
+def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_act_scale=False):
     if device is None: device = get_device()
     for A in As: A.to(device)
     for B in Bs: B.to(device)
@@ -230,7 +230,7 @@ def _smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_a
     for B in Bs: B.cpu()
 
 @torch.no_grad()
-def smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32, importance=None, ignore_act_scale=False):
+def _smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32, importance=None, ignore_act_scale=False):
     if device is None: device = get_device()
     for A in As: A.to(device)
     for B in Bs: B.to(device)
@@ -268,8 +268,13 @@ def smooth_fn_pow(As, Bs, a=None, b=None, device=None, chunk_size=32, importance
     # r = torch.concat([normalize(B.weight) for B in Bs]).reshape(-1, Bs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p)
     # r2 = 1 / Bs[0].act_scale
     r = 1 / torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(p).mean(dim=1).pow(1/p)
-    r2 = torch.concat([B.weight for B in Bs]).reshape(-1, Bs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p)
-
+    # r2 = torch.concat([B.weight for B in Bs]).reshape(-1, Bs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p)
+    w_b = torch.concat([B.weight for B in Bs]).float()
+    shape = w_b.shape
+    w_b = w_b.reshape(-1, chunk_size)
+    w_b = w_b - w_b.min(dim=1, keepdim=True)[0]
+    qs = w_b.max(dim=1, keepdim=True)[0]
+    r2 = w_b.div(qs).reshape(shape).mean(dim=0)
     s, loss = calc_minimum_loss(r, r2)
 
     print(s)
