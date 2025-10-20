@@ -439,3 +439,8 @@ def sinkhorn(matrix,
         log_mu2 = (log_mu2 + (sal_row * g)).clip(-.3, 10.)
 
     return mu2_star, m, mu1_star
+
+def clamp_small(x, ratio=0.01):
+    norm = x.norm(dim=-1, keepdim=True)
+    thr = norm * ratio
+    return torch.where(x.abs() < thr, thr, x)

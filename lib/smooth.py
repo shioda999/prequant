@@ -102,13 +102,13 @@ def quantization_loss_for_smooth(As, Bs, num_chunks, H, s, ignore_act_scale=Fals
     loss = 0
     losses = []
     if hasattr(As[0], "act_scale") and ignore_act_scale is False:
-        sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().clamp(min=1e-2).pow(2).mean(dim=1).pow(0.5)
+        sa = torch.concat([clamp_small(A.weight)[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
         for i, B in enumerate(Bs):
             hamiltonian = getattr(B, "H", None)
             loss += q_err(B.weight / s, scale=s * sa, act_scale=As[0].act_scale.sqrt(), o_shrink=False, H=H, hamiltonian=hamiltonian).reshape(-1, B.weight.shape[-1]).sum(dim=0)
             # loss += q_err(B.weight / s, scale=s, act_scale=B.act_scale, o_shrink=False, H=H, hamiltonian=hamiltonian).reshape(-1, B.weight.shape[-1]).sum(dim=0)
     else:
-        sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().clamp(min=1e-2).pow(2).mean(dim=1).pow(0.5)
+        sa = torch.concat([clamp_small(A.weight)[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
         for B in Bs: loss += q_err(B.weight / s, scale=s * sa, o_shrink=False, H=H).reshape(-1, B.weight.shape[-1]).sum(dim=0)
     # loss = torch.stack(losses).max(dim=0)[0]
     return loss.reshape(num_chunks, -1).sum(dim=1)
@@ -183,7 +183,7 @@ def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_ac
         return r.pow(p[:,None].expand(-1, chunk_size).reshape(-1)), loss
 
     p = 2
-    r = 1 / torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().clamp(min=1e-2).pow(p).mean(dim=1).pow(1/p)
+    r = 1 / torch.concat([clamp_small(A.weight)[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(p).mean(dim=1).pow(1/p)
     r2 = torch.concat([B.weight for B in Bs]).reshape(-1, Bs[0].weight.shape[-1]).abs().pow(p).mean(dim=0).pow(1/p)
     
     s, loss = calc_minimum_loss(r)
