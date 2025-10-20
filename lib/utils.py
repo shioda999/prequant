@@ -16,10 +16,12 @@ def random_rotation_matrix(dim: int, device):
         Q[:, 0] = -Q[:, 0]
     return Q.to(device)
 
+@torch.no_grad()
 def standarize(model):
     divide(model)
     convert_norm(model)
 
+@torch.no_grad()
 def unstandarize(model):
     undivide(model)
     recover_norm(model)
