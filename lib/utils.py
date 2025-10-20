@@ -20,7 +20,7 @@ def standarize(model):
     divide(model)
     convert_norm(model)
 
-def recover(model):
+def unstandarize(model):
     undivide(model)
     recover_norm(model)
 
