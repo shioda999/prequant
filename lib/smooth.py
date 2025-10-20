@@ -208,7 +208,9 @@ def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_ac
 
     print(s)
     s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
-    for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
+    for A in As:
+        A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
+        if hasattr(A, "act_o_scale"): A.act_o_scale.mul_(s_)
     for B in Bs:
         B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
         if hasattr(B, "act_scale"): B.act_scale.mul_(s)
@@ -238,7 +240,9 @@ def smooth_fn_sinkhorn(As, Bs, device=None, chunk_size=32):
     s = torch.concat(s)
     print(s)
     s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
-    for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
+    for A in As:
+        A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
+        if hasattr(A, "act_o_scale"): A.act_o_scale.mul_(s_)
     for B in Bs:
         B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
         if hasattr(B, "act_scale"): B.act_scale.mul_(s)
@@ -284,7 +288,9 @@ def flip_sign(As, Bs, n_iterations=100, a=None, b=None, device=None, chunk_size=
     print(losses.sum() / initial_loss)
 
     s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
-    for A in As: A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
+    for A in As:
+        A.weight.data = A.weight.float().mul_(s_).to(A.weight.dtype)
+        if hasattr(A, "act_o_scale"): A.act_o_scale.mul_(s_)
     for B in Bs:
         B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
         if hasattr(B, "act_scale"): B.act_scale.mul_(s)

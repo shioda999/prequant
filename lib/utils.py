@@ -16,6 +16,14 @@ def random_rotation_matrix(dim: int, device):
         Q[:, 0] = -Q[:, 0]
     return Q.to(device)
 
+def standarize(model):
+    divide(model)
+    convert_norm(model)
+
+def recover(model):
+    undivide(model)
+    recover_norm(model)
+
 def divide(model):
     layers = get_layers(model)
     head_dim = get_head_dim(model)
@@ -91,6 +99,45 @@ class ConcatModule:
     def __call__(self, x):
         y = torch.concat([m(x) for m in self.modules], dim=-1)
         return y
+    
+def convert_norm(model):
+    if is_gemma_norm(model):
+        model._is_gemma = True
+        norm_class = get_head_norm(model).__class__
+        for m in model.modules():
+            if isinstance(m, norm_class):
+                m._prev_class = norm_class
+                m.__class__ = _RMSNorm
+                m.weight += 1
+
+def recover_norm(model):
+    if hasattr(model, "_is_gemma"):
+        del model._is_gemma
+        for m in model.modules():
+            if isinstance(m, _RMSNorm):
+                m.__class__ = m._prev_class
+                del m._prev_class
+                m.weight -= 1
+
+def is_gemma_norm(model):
+    norm = get_head_norm(model)
+    x = torch.zeros((1,norm.weight.shape[0]), device=norm.weight.device)
+    x[0] = 1
+    return torch.allclose(norm(x), (norm.weight + 1) * x)
+
+class _RMSNorm(torch.nn.Module):
+    def __init__(self, dim: int, eps: float = 1e-6):
+        super().__init__()
+        self.eps = eps
+        self.weight = torch.nn.Parameter(torch.zeros(dim))
+
+    def _norm(self, x):
+        return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
+
+    def forward(self, x):
+        output = self._norm(x.float())
+        output = output * self.weight.float()
+        return output.type_as(x)
 
 @torch.no_grad()
 def _quantize(w, nbits=4, group_sz=32):
