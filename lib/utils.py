@@ -92,7 +92,8 @@ def undivide(model):
             ])
 
             del mlp.gate_proj, mlp.up_proj
-    del model.qkv_merge, model.gate_up_merge
+    if hasattr(model, "qkv_merge"): del model.qkv_merge
+    if hasattr(model, "gate_up_merge"): model.gate_up_merge
 
 class ConcatModule:
     def __init__(self, *modules):
