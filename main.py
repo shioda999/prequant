@@ -9,7 +9,7 @@ from lib.convert import convert
 from lib.smooth import apply_smooth
 from lib.rotate import *
 from lib.permute import *
-from lib.get_module import apply_config
+from lib.get_module import *
 from lib.utils import *
 from lib.permute_annealing import *
 from lib.calibrate import *
@@ -22,12 +22,12 @@ def str2bool(s):
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', default='Qwen/Qwen3-0.6B')
+    # parser.add_argument('--model', default='Qwen/Qwen3-0.6B')
     # parser.add_argument('--model', default='Qwen/Qwen3-1.7B')
-    # parser.add_argument('--model', default='Qwen/Qwen3-4B-Instruct-2507')
+    parser.add_argument('--model', default='Qwen/Qwen3-4B-Instruct-2507')
+    # parser.add_argument('--model', default='google/gemma-3-1b-it')
     # parser.add_argument('--model', default='meta-llama/Llama-3.2-1B-Instruct')
     # parser.add_argument('--model', default='mistralai/Mistral-7B-Instruct-v0.3')
-    # parser.add_argument('--model', default='microsoft/Phi-4-mini-instruct')
     # parser.add_argument('--model', default='microsoft/Phi-4-mini-instruct')
     
     # benchmark
@@ -77,6 +77,15 @@ def main():
     args = get_args()
     model_name = args.model
     model, tokenizer = get_model(model_name)
+
+    # def f(v):
+    #     return v / v.abs().min()
+        
+    # layers = get_layers(model)
+    # for i, l in enumerate(layers):
+    #     print(f"{i}.pre", f(get_pre_norm(l).weight))
+    #     print(f"{i}.pos", f(get_post_norm(l).weight))
+    # exit(0)
 
     stat_act(model, tokenizer, num_samples=1, seq_len=5)
     result = calc_quantize_error(model)
