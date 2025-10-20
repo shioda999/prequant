@@ -440,6 +440,7 @@ def sinkhorn(matrix,
 
     return mu2_star, m, mu1_star
 
+@torch.no_grad()
 def clamp_for_scale(x, ratio=0.01):
     norm = x.norm(dim=-1, keepdim=True)
     thr = norm * ratio
