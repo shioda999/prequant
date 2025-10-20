@@ -440,7 +440,7 @@ def sinkhorn(matrix,
 
     return mu2_star, m, mu1_star
 
-def clamp_small(x, ratio=0.1):
+def clamp_small(x, ratio=0.25):
     norm = x.norm(dim=-1, keepdim=True)
     thr = norm * ratio
     return torch.where(x.abs() < thr, thr, x)
