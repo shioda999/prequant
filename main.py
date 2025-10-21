@@ -13,6 +13,7 @@ from lib.get_module import *
 from lib.utils import *
 from lib.permute_annealing import *
 from lib.calibrate import *
+from lib.comp.comp import compress
 from pprint import pprint
 
 device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
@@ -78,14 +79,8 @@ def main():
     model_name = args.model
     model, tokenizer = get_model(model_name)
 
-    # def f(v):
-    #     return v / v.abs().min()
-        
-    # layers = get_layers(model)
-    # for i, l in enumerate(layers):
-    #     print(f"{i}.pre", f(get_pre_norm(l).weight))
-    #     print(f"{i}.pos", f(get_post_norm(l).weight))
-    # exit(0)
+    compress(model)
+    exit(0)
 
     stat_act(model, tokenizer, num_samples=1, seq_len=5)
     result = calc_quantize_error(model)
