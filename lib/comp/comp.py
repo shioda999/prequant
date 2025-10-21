@@ -9,7 +9,7 @@ def compress(model, **kwargs):
     W = torch.stack(W_list)
     comp = LoRAStackCompressor.from_weights(W, **kwargs)
     W_rec = comp()
-    mse = torch.mean((W_rec.cpu() - W_stack) ** 2).item()
+    mse = torch.mean((W_rec.cpu() - W) ** 2).item()
     print(f"final mse: {mse:.6e}")
     
     for i, l in enumerate(layers):
