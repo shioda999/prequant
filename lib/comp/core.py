@@ -20,6 +20,7 @@ class LoRAStackCompressor(nn.Module):
         # We register them as Parameters with shapes (num_matrices, d_out, r) etc.
         self.A = nn.Parameter(torch.randn(num_matrices, d_out, r, device=self.device) * 1e-3)
         self.C = nn.Parameter(torch.randn(num_matrices, r, d_in, device=self.device) * 1e-3)
+        self.scale = nn.Parameter(torch.randn(num_matrices, d_out, 1, device=self.device) * 1e-3)
 
         # Diagonal for each matrix: length = min(d_out, d_in)
         self.diag_len = min(d_out, d_in)
@@ -31,7 +32,7 @@ class LoRAStackCompressor(nn.Module):
         # A: (N, d_out, r), C: (N, r, d_in) -> delta: (N, d_out, d_in)
         delta = torch.matmul(self.A, self.C)
         base = self.B.unsqueeze(0).expand(self.num_matrices, -1, -1)
-        W_rec = base + delta
+        W_rec = base * self.scale + delta
 
         # Overwrite diagonal entries with diag parameters
         if self.diag_len > 0:
@@ -73,7 +74,8 @@ class LoRAStackCompressor(nn.Module):
 
         # Initialize shared base B as mean of targets (good starting point)
         with torch.no_grad():
-            model.B.copy_(W.mean(dim=0))
+            model.scale.copy_(W.pow(2).mean(dim=-1, keepdim=True))
+            model.B.copy_((W / model.scale).mean(dim=0))
 
             # Initialize diag parameters to the diagonal of each weight
             if model.diag_len > 0:
