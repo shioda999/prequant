@@ -10,10 +10,11 @@ def compress(model, nbits=4, group_sz=32, **kwargs):
     for l in layers:
         w = get_gate(l).weight
         dtype = w.dtype
-        u, K, v = sinkhorn(w)
-        W_list.append(K)
-        u_list.append(u)
-        v_list.append(v)
+        W_list.append(w)
+        # u, K, v = sinkhorn(w)
+        # W_list.append(K)
+        # u_list.append(u)
+        # v_list.append(v)
     w = torch.stack(W_list)
     shape = w.shape
     with torch.no_grad():
@@ -31,4 +32,5 @@ def compress(model, nbits=4, group_sz=32, **kwargs):
     w_rec = w_rec.reshape(-1, group_sz).add(8).cpu().mul(s).add(min_v).reshape(shape)
     
     for i, l in enumerate(layers):
-        get_gate(l).weight.data = (u_list[i] * w_rec[i] * v[i]).to(dtype)
+        # get_gate(l).weight.data = (u_list[i] * w_rec[i] * v[i]).to(dtype)
+        get_gate(l).weight.data = w_rec[i].to(dtype)
