@@ -30,4 +30,4 @@ def compress(model, nbits=4, group_sz=32, **kwargs):
     w_rec = w_rec.reshape(-1, group_sz).add(8).cpu().mul(s).add(min_v).reshape(shape).to(dtype)
     
     for i, l in enumerate(layers):
-        get_down(l).weight.data = u_list[i] * w_rec[i] * v[i]
+        get_gate(l).weight.data = u_list[i] * w_rec[i] * v[i]
