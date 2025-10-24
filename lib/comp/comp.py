@@ -9,12 +9,13 @@ def compress(model, nbits=4, group_sz=32, **kwargs):
     u_list, v_list = [], []
     for l in layers:
         w = get_gate(l).weight
-        dtype, shape = w.dtype, w.shape
+        dtype = w.dtype
         u, K, v = sinkhorn(w)
         W_list.append(K)
         u_list.append(u)
         v_list.append(v)
     w = torch.stack(W_list)
+    shape = w.shape
     with torch.no_grad():
         w = w.reshape(-1, group_sz).float()
         Qp = 2 ** nbits - 1
