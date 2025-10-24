@@ -27,7 +27,7 @@ def compress(model, nbits=4, group_sz=32, **kwargs):
     mse = torch.mean((w_rec - w.to(w_rec.device)) ** 2).item()
     print(f"final mse: {mse:.6e}")
 
-    w_rec = w_rec.reshape(-1, group_sz).add(8).cpu().mul(s).add(min_v).reshape(shape).to(dtype)
+    w_rec = w_rec.reshape(-1, group_sz).add(8).cpu().mul(s).add(min_v).reshape(shape)
     
     for i, l in enumerate(layers):
-        get_gate(l).weight.data = u_list[i] * w_rec[i] * v[i]
+        get_gate(l).weight.data = (u_list[i] * w_rec[i] * v[i]).to(dtype)
