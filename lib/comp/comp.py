@@ -6,8 +6,13 @@ from .ae import *
 def compress(model, nbits=4, group_sz=32, **kwargs):
     layers = get_layers(model)
     W_list = []
+    u_list, v_list = [], []
     for l in layers:
-        W_list.append(get_down(l).weight)
+        w = get_gate(l).weight
+        u, K, v = sinkhorn(w)
+        W_list.append(K)
+        u_list.append(u)
+        v_list.append(v)
     w = torch.stack(W_list)
     dtype, shape = w.dtype, w.shape
     with torch.no_grad():
@@ -25,4 +30,4 @@ def compress(model, nbits=4, group_sz=32, **kwargs):
     w_rec = w_rec.reshape(-1, group_sz).add(8).cpu().mul(s).add(min_v).reshape(shape).to(dtype)
     
     for i, l in enumerate(layers):
-        get_down(l).weight.data = w_rec[i]
+        get_down(l).weight.data = u_list[i][:,None] * w_rec[i] * v[i]

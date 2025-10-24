@@ -236,7 +236,6 @@ def smooth_fn_sinkhorn(As, Bs, device=None, chunk_size=32):
     for i in range(dim // chunk_size):
         u, K, v = sinkhorn(w_b[:,i*chunk_size:(i+1)*chunk_size])
         s.append(v)
-
     s = torch.concat(s)
     print(s)
     s_ = s[:,None] if len(As[0].weight.shape) > 1 else s
