@@ -35,7 +35,7 @@ def compress(model, nbits=4, group_sz=32, **kwargs):
 
     w_rec[1:] = w_rec[1:] + w_rec[0:1]
     w_rec = (w_rec + 24) % 16 - 8
-    w_rec = w_rec.gather(dim=-2, index=perm.argsort(dim=-2).expand_as(w_rec))
+    w_rec = w_rec.gather(dim=-2, index=perm.to(w_rec.device).argsort(dim=-2).expand_as(w_rec))
     w_rec = w_rec.reshape(-1, group_sz).add(8).cpu().mul(s).add(min_v).reshape(shape)
 
     for i, l in enumerate(layers):
