@@ -57,7 +57,7 @@ def permute_sim(w):
             sim[i,row,:] = -torch.inf
             sim[i,:,col] = -torch.inf
             perm[i,col,0] = row
-    return perm.cpu()
+    return perm.to(torch.int64).cpu()
 
 def test():
     w = (torch.randn((2, 3, 5)) * 16).round()
