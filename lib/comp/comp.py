@@ -27,9 +27,9 @@ def compress(model, nbits=4, group_sz=32, **kwargs):
         w = w.gather(dim=-2, index=perm.expand_as(w))
         # w[1:] = w[1:] - w[0:1]
         # w = (w + 24) % 16 - 8
-    comp = LoRAStackCompressor.from_weights(w, **kwargs)
-    # comp = CrossLayerAECompressor.from_weights(W, **kwargs)
-    w_rec = comp()
+    # comp = LoRAStackCompressor.from_weights(w, **kwargs)
+    # w_rec = comp()
+    w_rec = w.clone()
     mse = torch.mean((w_rec - w.to(w_rec.device)) ** 2).item()
     print(f"final mse: {mse:.6e}")
 
@@ -45,7 +45,7 @@ def compress(model, nbits=4, group_sz=32, **kwargs):
 
 def permute_sim(w):
     N, D, D2 = w.shape
-    w = w.to(get_device())
+    w = w.to(get_device()).abs()
     base = w[0:1] # (1, D, D2)
     sim = w @ base.transpose(-1,-2) # (N, D, D)
     perm = torch.zeros((N,D,1), device=w.device).int()
