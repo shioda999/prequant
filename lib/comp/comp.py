@@ -23,6 +23,8 @@ def compress(model, nbits=4, group_sz=32, **kwargs):
         min_v = w.min(dim=1, keepdim=True)[0]
         s = (w.max(dim=1, keepdim=True)[0] - min_v) / Qp
         w = torch.round(w.sub(min_v).div(s)).clamp(0, Qp).reshape(shape) - 8
+        perm = permute_sim(w)
+        w = w.gather(dim=-1, index=perm.expand_as(w))
     comp = LoRAStackCompressor.from_weights(w, **kwargs)
     # comp = CrossLayerAECompressor.from_weights(W, **kwargs)
     w_rec = comp()
@@ -33,4 +35,20 @@ def compress(model, nbits=4, group_sz=32, **kwargs):
     
     for i, l in enumerate(layers):
         # get_gate(l).weight.data = (u_list[i] * w_rec[i] * v[i]).to(dtype)
-        get_gate(l).weight.data = w_rec[i].to(dtype)
+        w_r = w_rec[i].to(dtype)
+        w_r = w_r.gather(dim=-1, index=perm.expand_as(w))
+        get_gate(l).weight.data = w_r
+
+def permute_sim(w):
+    N, D, D2 = w.shape
+    base = w[0:1] # (1, D, D2)
+    sim = w @ base.transpose(-1,-2) # (N, D, D)
+    perm = torch.zeros((N,D,1), device=w.device).int()
+    for i in range(N):
+        for j in range(D):
+            idx = sim[i].argmax().item()
+            row, col = idx // D, idx % D
+            sim[i,row,:] = -torch.inf
+            sim[i,:,col] = -torch.inf
+            perm[i,col,0] = row
+    return perm
