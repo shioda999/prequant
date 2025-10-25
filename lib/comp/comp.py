@@ -23,20 +23,20 @@ def compress(model, nbits=4, group_sz=32, **kwargs):
         min_v = w.min(dim=1, keepdim=True)[0]
         s = (w.max(dim=1, keepdim=True)[0] - min_v) / Qp
         w = torch.round(w.sub(min_v).div(s)).clamp(0, Qp).reshape(shape) - 8
-        # perm = permute_sim(w)
-        # w = w.gather(dim=-2, index=perm.expand_as(w))
-        # w[1:] = w[1:] - w[0:1]
-        # w = (w + 24) % 16 - 8
-    # comp = LoRAStackCompressor.from_weights(w, **kwargs)
-    # w_rec = comp()
-    w_rec = w.clone()
+        perm = permute_sim(w)
+        w = w.gather(dim=-2, index=perm.expand_as(w))
+        w[1:] = w[1:] - w[0:1]
+        w = (w + 24) % 16 - 8
+    comp = LoRAStackCompressor.from_weights(w, **kwargs)
+    w_rec = comp()
+    # w_rec = w.clone()
     mse = torch.mean((w_rec - w.to(w_rec.device)) ** 2).item()
     print(f"final mse: {mse:.6e}")
 
+    w_rec[1:] = w_rec[1:] + w_rec[0:1]
+    w_rec = (w_rec + 24) % 16 - 8
+    w_rec = w_rec.gather(dim=-2, index=perm.argsort(dim=-2).expand_as(w_rec))
     w_rec = w_rec.reshape(-1, group_sz).add(8).cpu().mul(s).add(min_v).reshape(shape)
-    # w_rec[1:] = w_rec[1:] + w_rec[0:1]
-    # w_rec = (w_rec + 24) % 16 - 8
-    # w_rec = w_rec.gather(dim=-2, index=perm.argsort(dim=-2).expand_as(w_rec))
 
     for i, l in enumerate(layers):
         # get_gate(l).weight.data = (u_list[i] * w_rec[i] * v[i]).to(dtype)
