@@ -45,7 +45,7 @@ def compress(model, nbits=4, group_sz=32, **kwargs):
 
 def permute_sim(w):
     N, D, D2 = w.shape
-    w = w.to(get_device()).abs()
+    w = w.to(get_device())#.abs()
     base = w[0:1] # (1, D, D2)
     sim = w @ base.transpose(-1,-2) # (N, D, D)
     perm = torch.zeros((N,D,1), device=w.device).int()
