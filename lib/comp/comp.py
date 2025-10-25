@@ -25,7 +25,7 @@ def compress(model, nbits=4, group_sz=32, **kwargs):
         w = torch.round(w.sub(min_v).div(s)).clamp(0, Qp).reshape(shape) - 8
         perm = permute_sim(w)
         w = w.gather(dim=-2, index=perm.expand_as(w))
-        w = w - w[0:1]
+        w[1:] = w[1:] - w[0:1]
         w = (w + 168) % 16 - 8
     comp = LoRAStackCompressor.from_weights(w, **kwargs)
     # comp = CrossLayerAECompressor.from_weights(W, **kwargs)
@@ -34,7 +34,7 @@ def compress(model, nbits=4, group_sz=32, **kwargs):
     print(f"final mse: {mse:.6e}")
 
     w_rec = w_rec.reshape(-1, group_sz).add(8).cpu().mul(s).add(min_v).reshape(shape)
-    w_rec = w_rec + w_rec[0:1]
+    w_rec[1:] = w_rec[1:] + w_rec[0:1]
     w_rec = (w_rec + 168) % 16 - 8
     w_rec = w_rec.gather(dim=-2, index=perm.argsort(dim=-2).expand_as(w_rec))
 
@@ -45,7 +45,7 @@ def compress(model, nbits=4, group_sz=32, **kwargs):
 
 def permute_sim(w):
     N, D, D2 = w.shape
-    w = w.cuda()
+    w = w.to(get_device())
     base = w[0:1] # (1, D, D2)
     sim = w @ base.transpose(-1,-2) # (N, D, D)
     perm = torch.zeros((N,D,1), device=w.device).int()
@@ -58,3 +58,20 @@ def permute_sim(w):
             sim[i,:,col] = -torch.inf
             perm[i,col,0] = row
     return perm.cpu()
+
+def test():
+    w = (torch.randn((2, 3, 5)) * 16).round()
+    w = (w + 168) % 16 - 8
+    w_ori = w.clone()
+    perm = permute_sim(w)
+    w = w.gather(dim=-2, index=perm.expand_as(w).to(torch.int64))
+    w[1:] = w[1:] - w[0:1]
+    w = (w + 24) % 16 - 8
+
+    w[1:] = w[1:] + w[0:1]
+    w = (w + 24) % 16 - 8
+    w = w.gather(dim=-2, index=perm.argsort(dim=-2).expand_as(w).to(torch.int64))
+
+    print(w_ori)
+    print(w)
+    print(torch.allclose(w_ori, w))
