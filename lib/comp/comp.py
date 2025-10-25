@@ -46,6 +46,7 @@ def permute_sim(w):
     sim = w @ base.transpose(-1,-2) # (N, D, D)
     perm = torch.zeros((N,D,1), device=w.device).int()
     for i in range(N):
+        print(f"{i}/{N}")
         for j in range(D):
             idx = sim[i].argmax().item()
             row, col = idx // D, idx % D
