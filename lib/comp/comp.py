@@ -36,7 +36,7 @@ def compress(model, nbits=4, group_sz=32, **kwargs):
     for i, l in enumerate(layers):
         # get_gate(l).weight.data = (u_list[i] * w_rec[i] * v[i]).to(dtype)
         w_r = w_rec[i].to(dtype)
-        w_r = w_r.gather(dim=-2, index=perm.argsort(dim=1).expand_as(w_r))
+        w_r = w_r.gather(dim=-2, index=perm[i].argsort(dim=-2).expand_as(w_r))
         get_gate(l).weight.data = w_r
 
 def permute_sim(w):
