@@ -79,8 +79,8 @@ def main():
     model_name = args.model
     model, tokenizer = get_model(model_name)
 
-    compress(model, steps=1)
-    exit(0)
+    # compress(model, steps=1)
+    # exit(0)
 
     stat_act(model, tokenizer, num_samples=1, seq_len=5)
     result = calc_quantize_error(model)
