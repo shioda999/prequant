@@ -181,7 +181,6 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
     delta2 = delta2.float()
     # loss = delta.float().pow(2).mean(dim=0)
     loss = delta.pow(2).mean(dim=0) + delta2.pow(2).mean(dim=0)
-    print(hamiltonian)
     if hamiltonian is not None and t is False:
         print("use hamlitonian")
         # loss = (delta @ hamiltonian.to(delta.device).float() * delta).mean(dim=0)

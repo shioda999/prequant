@@ -43,7 +43,7 @@ def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None, min_v
     
     hooks = []
     target_class = (get_head_norm(model).__class__,)
-    # target_class = (torch.nn.Linear, get_head_norm(model).__class__)
+    if calc_H: target_class = (torch.nn.Linear, get_head_norm(model).__class__)
     for name, m in model.named_modules():
         if isinstance(m, target_class):
             hooks.append(
