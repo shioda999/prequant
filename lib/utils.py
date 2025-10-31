@@ -160,7 +160,7 @@ def quantize(w, nbits=4, group_sz=32, ste=False):
     w_q = round_fn(w.sub(min_v).div(s)).clamp(0, Qp).mul(s).add(min_v).reshape(shape).to(dtype)
     return w_q, s
 
-def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shrink=True, ste=False, quadratic=False, hamiltonian=None):
+def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shrink=True, ste=False, hamiltonian=None):
     w = m.weight if hasattr(m, "weight") else m
     w_q, s = quantize(w, nbits, ste=ste)
     delta = w_q - w
@@ -181,11 +181,10 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
     delta2 = delta2.float()
     # loss = delta.float().pow(2).mean(dim=0)
     loss = delta.pow(2).mean(dim=0) + delta2.pow(2).mean(dim=0)
-    if quadratic:
-        if hamiltonian is not None and t is False:
-            # loss = (delta @ hamiltonian.to(delta.device).float() * delta).mean(dim=0)
-            loss = (delta @ hamiltonian.to(delta.device).float() * delta).pow(2).mean(dim=0)\
-                + (w @ hamiltonian.to(delta.device).float() * delta).mean(dim=0)
+    if hamiltonian is not None and t is False:
+        # loss = (delta @ hamiltonian.to(delta.device).float() * delta).mean(dim=0)
+        loss = (delta @ hamiltonian.to(delta.device).float() * delta).pow(2).mean(dim=0)\
+            + (w @ hamiltonian.to(delta.device).float() * delta * 2).mean(dim=0)
     if o_shrink:
         loss = loss.reshape(-1, sz).mean(dim=-1)
     return loss
