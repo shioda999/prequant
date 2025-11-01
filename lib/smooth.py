@@ -98,7 +98,7 @@ def decide_step_size(s, index, chunk_idx, loss_fn, current_loss, init_step_size=
     if loss < loss2: loss2, s[index] = loss, tmp_s
     return loss2
 
-def quantization_loss_for_smooth(As, Bs, num_chunks, H, s, ignore_act_scale=False):
+def quantization_loss_for_smooth(As, Bs, chunk_size, H, s, ignore_act_scale=False):
     loss = 0
     losses = []
     if hasattr(As[0], "act_scale") and ignore_act_scale is False:
@@ -112,7 +112,7 @@ def quantization_loss_for_smooth(As, Bs, num_chunks, H, s, ignore_act_scale=Fals
         sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
         for B in Bs: loss += q_err(B.weight / s, scale=s * sa, o_shrink=False, H=H).reshape(-1, B.weight.shape[-1]).sum(dim=0)
     # loss = torch.stack(losses).max(dim=0)[0]
-    return loss.reshape(num_chunks, -1).sum(dim=1)
+    return loss.reshape(-1, chunk_size).sum(dim=1)
 
 @torch.no_grad() 
 def smooth_fn_greedy(As, Bs, n_iterations=500, device=None, chunk_size=32, step_size=0.01):
@@ -131,7 +131,7 @@ def smooth_fn_greedy(As, Bs, n_iterations=500, device=None, chunk_size=32, step_
     chunks = [slice(i * chunk_size, min((i + 1) * chunk_size, len(s))) for i in range(num_chunks)]
         
     def compute_loss(s):
-        return quantization_loss_for_smooth(As, Bs, num_chunks, H, s)
+        return quantization_loss_for_smooth(As, Bs, chunk_size, H, s)
     
     # 各チャンクの初期損失を計算
     losses = compute_loss(s)
@@ -172,7 +172,7 @@ def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_ac
     H = As[0].rot_mat.to(device) if hasattr(As[0], "rot_mat") else None
     
     def compute_loss(s):
-        return quantization_loss_for_smooth(As, Bs, num_chunks, H, s, ignore_act_scale=ignore_act_scale)
+        return quantization_loss_for_smooth(As, Bs, chunk_size, H, s, ignore_act_scale=ignore_act_scale)
         
     def calc_minimum_loss(r):
         loss = compute_loss(r.pow(0))
@@ -266,7 +266,7 @@ def flip_sign(As, Bs, n_iterations=100, a=None, b=None, device=None, chunk_size=
     chunks = [slice(i * chunk_size, min((i + 1) * chunk_size, len(s))) for i in range(num_chunks)]
     
     def compute_loss(s):
-        return quantization_loss_for_smooth(As, Bs, num_chunks, H, s)
+        return quantization_loss_for_smooth(As, Bs, chunk_size, H, s)
         
     # 各チャンクの初期損失を計算
     losses = compute_loss(s)
@@ -300,6 +300,7 @@ def flip_sign(As, Bs, n_iterations=100, a=None, b=None, device=None, chunk_size=
 @torch.no_grad() 
 def smooth_fn(As, Bs, n_iterations=500, device=None, chunk_size=32, step_size=0.01, mode="pow", importance=None, ignore_act_scale=False, **kwargs):
     parts = re.split(r"[.,+]", mode)
+    if chunk_size == -1: chunk_size = As[0].weight.shape[-1]
     for m in parts:
         if "pow" in m:
             smooth_fn_pow(As, Bs, device, chunk_size, importance=importance, ignore_act_scale=ignore_act_scale)
