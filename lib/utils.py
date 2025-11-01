@@ -160,6 +160,28 @@ def quantize(w, nbits=4, group_sz=32, ste=False):
     w_q = round_fn(w.sub(min_v).div(s)).clamp(0, Qp).mul(s).add(min_v).reshape(shape).to(dtype)
     return w_q, s
 
+def block_diagonalize(X: torch.Tensor, block_size: int = 32):
+    """
+    X: 正方行列 (torch.Tensor)
+    block_size: ブロックサイズ（デフォルト32）
+    """
+    n = X.shape[0]
+    assert X.shape[0] == X.shape[1], "X must be square"
+    assert n % block_size == 0, "Matrix size must be a multiple of block_size"
+
+    num_blocks = n // block_size
+
+    # ゼロ行列を準備
+    out = torch.zeros_like(X)
+
+    # 各ブロック対角部分をコピー
+    for i in range(num_blocks):
+        start = i * block_size
+        end = (i + 1) * block_size
+        out[start:end, start:end] = X[start:end, start:end]
+
+    return out
+
 def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shrink=True, ste=False, hamiltonian=None):
     w = m.weight if hasattr(m, "weight") else m
     w_q, s = quantize(w, nbits, ste=ste)
@@ -172,7 +194,7 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
         delta2 = delta
     if hamiltonian is not None and t is False:
         # loss = (delta @ hamiltonian * delta).mean(dim=0)
-        loss = (delta @ hamiltonian * delta).sum(dim=-1, keepdim=True).pow(2).mean(dim=0)
+        loss = (delta @ block_diagonalize(hamiltonian) * delta).sum(dim=-1, keepdim=True).pow(2).mean(dim=0)
         # loss = (delta @ hamiltonian * delta).sum(dim=-1, keepdim=True).pow(2).mean(dim=0)\
         #     + (w.float() @ hamiltonian * delta * 2).mean(dim=0)
     else:
