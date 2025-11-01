@@ -193,8 +193,8 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
         delta = delta.mul(scale.weight if hasattr(scale, "weight") else scale)
         delta2 = delta
     if hamiltonian is not None and t is False:
-        # loss = (delta @ hamiltonian * delta).mean(dim=0)
-        loss = (delta @ block_diagonalize(hamiltonian) * delta).sum(dim=-1, keepdim=True).pow(2).mean(dim=0)
+        loss = (delta @ block_diagonalize(hamiltonian) * delta).mean(dim=0)
+        # loss = (delta @ block_diagonalize(hamiltonian) * delta).sum(dim=-1, keepdim=True).pow(2).mean(dim=0)
         # loss = (delta @ hamiltonian * delta).sum(dim=-1, keepdim=True).pow(2).mean(dim=0)\
         #     + (w.float() @ hamiltonian * delta * 2).mean(dim=0)
     else:
