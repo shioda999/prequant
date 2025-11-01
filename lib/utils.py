@@ -175,7 +175,7 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
     else:
         if act_scale is not None:
             delta = delta.mul(act_scale.to(delta.device))
-            delta2.mul_(act_scale.to(delta.device).pow(2).mean().sqrt())
+            delta2.mul_(act_scale.to(delta.device).abs().mean())
         if t is True:
             delta = delta.T
             delta2 = delta2.T
@@ -185,8 +185,8 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
         delta = delta.float()
         delta2 = delta2.float()
         # loss = delta.float().pow(2).mean(dim=0)
-        # loss = delta.pow(2).mean(dim=0)# + delta2.pow(2).mean(dim=0)
-        loss = delta2.pow(2).mean(dim=0)
+        loss = delta.pow(2).mean(dim=0) + delta2.pow(2).mean(dim=0)
+        # loss = delta2.pow(2).mean(dim=0)
     if o_shrink:
         loss = loss.reshape(-1, sz).mean(dim=-1)
     return loss
