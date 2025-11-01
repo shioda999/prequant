@@ -175,7 +175,7 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
     else:
         if act_scale is not None:
             delta = delta.mul(act_scale.to(delta.device))
-            delta2.mul_(act_scale.to(delta.device).abs().mean())
+            delta2.mul_(act_scale.to(delta.device).pow(2).mean().sqrt())
         if t is True:
             delta = delta.T
             delta2 = delta2.T
