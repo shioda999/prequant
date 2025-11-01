@@ -185,7 +185,7 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
         delta = delta.float()
         delta2 = delta2.float()
         # loss = delta.float().pow(2).mean(dim=0)
-        loss = delta.pow(2).mean(dim=0) + delta2.pow(2).mean(dim=0) * 0.1
+        loss = delta.pow(2).mean(dim=0) + delta2.pow(2).mean(dim=0)
         # loss = delta2.pow(2).mean(dim=0)
     if o_shrink:
         loss = loss.reshape(-1, sz).mean(dim=-1)
