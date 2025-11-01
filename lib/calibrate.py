@@ -23,17 +23,17 @@ def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None, min_v
     def stat_tensor(name, tensor):
         hidden_dim = tensor.shape[-1]
         batch_sz = tensor.shape[0]
-        if calc_H: H = (tensor.transpose(-1, -2).cpu() @ tensor.cpu()).sum(dim=0)
+        H = (tensor.transpose(-1, -2) @ tensor).sum(dim=0) if calc_H and name.endswith("_output") else None
         tensor = tensor.reshape(-1, hidden_dim).abs().detach()
         comming_l2 = tensor.abs().double().pow(2).mean(dim=0).sqrt().float()
         if name in act_scales:
             nx_cnt = cnt[name] + batch_sz
             act_scales[name] = (act_scales[name].double().pow(2)*cnt[name]/nx_cnt + comming_l2.double().pow(2)/nx_cnt).sqrt().float()
-            if calc_H: Hs[name] = Hs[name] * cnt[name]/nx_cnt + H / nx_cnt
+            if H is not None: Hs[name] = Hs[name] * cnt[name]/nx_cnt + H / nx_cnt
             cnt[name] = nx_cnt
         else:
             act_scales[name] = comming_l2
-            if calc_H: Hs[name] = H / batch_sz
+            if H is not None: Hs[name] = H / batch_sz
             cnt[name] = batch_sz
 
     
@@ -43,7 +43,7 @@ def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None, min_v
     
     hooks = []
     target_class = (get_head_norm(model).__class__,)
-    if calc_H: target_class = (torch.nn.Linear, get_head_norm(model).__class__)
+    # target_class = (torch.nn.Linear, get_head_norm(model).__class__)
     for name, m in model.named_modules():
         if isinstance(m, target_class):
             hooks.append(
@@ -76,7 +76,7 @@ def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None, min_v
         if isinstance(m, target_class):
             m.act_scale = act_scales[name]
             m.act_o_scale = act_scales[name + "_output"]
-            if calc_H: m.H = Hs[name].cpu()
+            if calc_H: m.H = Hs[name + "_output"].cpu()
 
     model.to(prev_device)
     return act_scales
