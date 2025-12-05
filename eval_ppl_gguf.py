@@ -57,68 +57,59 @@ def eval_ppl_wikitext_llama_cpp(model, testenc, device=None):
 
     ppl = torch.exp(torch.stack(nlls).sum() / (nsamples * seqlen))
     return ppl.item()
+import os
+import json
+from gguf import GGUFReader
+from transformers import PreTrainedTokenizerFast
 
 def load_tokenizer(gguf_path):
-    import os
-    from transformers import AutoTokenizer
-
-    # まず通常読み込みを試す
-    try:
-        return AutoTokenizer.from_pretrained(os.path.dirname(gguf_path))
-    except Exception:
-        pass
-
-    from gguf import GGUFReader
     reader = GGUFReader(gguf_path)
+    meta = {m.name: m.data for m in reader.metadata}
 
-    tok_json = None
+    # ---- tokenizer type ----
+    tok_type = meta.get("tokenizer.ggml.model", meta.get("tokenizer.model", "unknown"))
 
-    for item in reader.fields:
-        # ---- Pattern A: new 3-tuple (key, ftype, value)
-        if isinstance(item, tuple):
-            if len(item) == 3:
-                key, ftype, value = item
+    # ---- vocab (tokens) ----
+    tokens = [t["text"] for t in meta["tokenizer.ggml.tokens"]]
 
-            # ---- Pattern B: old 2-tuple (key, (ftype, value))
-            elif len(item) == 2:
-                key, fv = item
-                if isinstance(fv, tuple) and len(fv) == 2:
-                    ftype, value = fv
-                else:
-                    continue
-            else:
-                continue
+    # ---- scores (for sentencepiece) ----
+    scores = [t.get("score", 0.0) for t in meta["tokenizer.ggml.tokens"]]
 
-        # ---- Pattern C: Field object
-        elif hasattr(item, "name") and hasattr(item, "value"):
-            key = item.name
-            ftype = item.ftype
-            value = item.value
+    # ---- merges（BPEなら存在） ----
+    merges = meta.get("tokenizer.ggml.merges", None)
 
-        # ---- Pattern D: unexpected (e.g., plain string) → skip
-        else:
-            continue
+    # ---- add special tokens ----
+    special_tokens = {}
+    for key, value in meta.items():
+        if key.startswith("tokenizer.ggml.bos_token_id"):
+            special_tokens["bos_token"] = tokens[value]
+        if key.startswith("tokenizer.ggml.eos_token_id"):
+            special_tokens["eos_token"] = tokens[value]
+        if key.startswith("tokenizer.ggml.pad_token_id"):
+            special_tokens["pad_token"] = tokens[value]
 
-        # --- Look for tokenizer field
-        if key.startswith("tokenizer.") or key.startswith("tokenizer_") or "tokenizer" in key:
-            if isinstance(value, (str, bytes)):
-                tok_json = value
-                break
+    # ---- tokenizer.json を自動生成し transformers 用に作成 ----
+    # sentencepiece 形式の場合
+    tokenizer_json = {
+        "model": {
+            "type": "Unigram",
+            "vocab": [[t, s] for t, s in zip(tokens, scores)],
+            "unk_id": meta.get("tokenizer.ggml.unk_token_id", 0),
+        },
+        "normalizer": {"type": "BertNormalizer"},
+        "pre_tokenizer": {"type": "Whitespace"},
+        "post_processor": None,
+        **special_tokens,
+    }
 
-    if tok_json is None:
-        raise RuntimeError("tokenizer.json not found in GGUF file")
+    # 一時的に保存
+    tmp_json = os.path.join(os.path.dirname(gguf_path), "tokenizer_from_gguf.json")
+    with open(tmp_json, "w", encoding="utf-8") as f:
+        json.dump(tokenizer_json, f, ensure_ascii=False, indent=2)
 
-    # bytes → str
-    if isinstance(tok_json, bytes):
-        tok_json = tok_json.decode("utf-8")
-
-    # Save to file
-    tmp_path = "tmp_tokenizer.json"
-    with open(tmp_path, "w", encoding="utf-8") as f:
-        f.write(tok_json)
-
-    from transformers import PreTrainedTokenizerFast
-    return PreTrainedTokenizerFast(tokenizer_file=tmp_path)
+    # transformers の fast tokenizer として読ませる
+    tok = PreTrainedTokenizerFast(tokenizer_file=tmp_json, **special_tokens)
+    return tok
 
 if __name__ == "__main__":
     args = get_args()
