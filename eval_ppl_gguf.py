@@ -62,50 +62,63 @@ def load_tokenizer(gguf_path):
     import os
     from transformers import AutoTokenizer
 
-    # まずは普通に読み込みを試す
+    # まず通常読み込みを試す
     try:
         return AutoTokenizer.from_pretrained(os.path.dirname(gguf_path))
     except Exception:
         pass
 
-    # gguf から tokenizer.json を抽出する
     from gguf import GGUFReader
-
     reader = GGUFReader(gguf_path)
+
     tok_json = None
 
-    # GGUFReader.fields の仕様変更に対応
     for item in reader.fields:
-        # item が tuple の場合: (key, ftype, fval)
+        # ---- Pattern A: new 3-tuple (key, ftype, value)
         if isinstance(item, tuple):
             if len(item) == 3:
-                key, ftype, fval = item
+                key, ftype, value = item
+
+            # ---- Pattern B: old 2-tuple (key, (ftype, value))
             elif len(item) == 2:
-                key, (ftype, fval) = item
+                key, fv = item
+                if isinstance(fv, tuple) and len(fv) == 2:
+                    ftype, value = fv
+                else:
+                    continue
             else:
                 continue
-        else:
+
+        # ---- Pattern C: Field object
+        elif hasattr(item, "name") and hasattr(item, "value"):
             key = item.name
             ftype = item.ftype
-            fval = item.value
-        if key.startswith("tokenizer.ggml"):
-            tok_json = fval
-            break
+            value = item.value
+
+        # ---- Pattern D: unexpected (e.g., plain string) → skip
+        else:
+            continue
+
+        # --- Look for tokenizer field
+        if key.startswith("tokenizer.") or key.startswith("tokenizer_") or "tokenizer" in key:
+            if isinstance(value, (str, bytes)):
+                tok_json = value
+                break
 
     if tok_json is None:
-        raise RuntimeError("tokenizer.json not found in GGUF fields.")
+        raise RuntimeError("tokenizer.json not found in GGUF file")
 
-    # JSON を一時ファイルとして保存
+    # bytes → str
     if isinstance(tok_json, bytes):
         tok_json = tok_json.decode("utf-8")
 
+    # Save to file
     tmp_path = "tmp_tokenizer.json"
     with open(tmp_path, "w", encoding="utf-8") as f:
         f.write(tok_json)
 
     from transformers import PreTrainedTokenizerFast
     return PreTrainedTokenizerFast(tokenizer_file=tmp_path)
-
 
 if __name__ == "__main__":
     args = get_args()
