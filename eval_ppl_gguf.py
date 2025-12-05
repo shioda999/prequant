@@ -59,26 +59,53 @@ def eval_ppl_wikitext_llama_cpp(model, testenc, device=None):
     return ppl.item()
 
 def load_tokenizer(gguf_path):
+    import os
+    from transformers import AutoTokenizer
+
+    # まずは普通に読み込みを試す
     try:
         return AutoTokenizer.from_pretrained(os.path.dirname(gguf_path))
-    except Exception as e:
-        from gguf import GGUFReader
-        import json
-        reader = GGUFReader(gguf_path)
-        fields = dict(reader.fields)
-        tok_json = None
-        for key, fval in fields.items():
-        # for key, (ftype, fval) in fields.items():
-            if key.startswith("tokenizer.ggml.model"):  # ggufの仕様によってキーは変わる
-                tok_json = fval
-                break
-        if tok_json is None:
-            raise RuntimeError("tokenizer.json not found.")
+    except Exception:
+        pass
 
-        with open("tmp_tokenizer.json", "w", encoding="utf-8") as f:
-            f.write(tok_json if isinstance(tok_json, str) else tok_json.decode("utf-8"))
-        from transformers import PreTrainedTokenizerFast
-        return PreTrainedTokenizerFast(tokenizer_file="tmp_tokenizer.json")
+    # gguf から tokenizer.json を抽出する
+    from gguf import GGUFReader
+
+    reader = GGUFReader(gguf_path)
+    tok_json = None
+
+    # GGUFReader.fields の仕様変更に対応
+    for item in reader.fields:
+        # item が tuple の場合: (key, ftype, fval)
+        if isinstance(item, tuple):
+            if len(item) == 3:
+                key, ftype, fval = item
+            elif len(item) == 2:
+                key, (ftype, fval) = item
+            else:
+                continue
+        else:
+            key = item.name
+            ftype = item.ftype
+            fval = item.value
+        if key.startswith("tokenizer.ggml"):
+            tok_json = fval
+            break
+
+    if tok_json is None:
+        raise RuntimeError("tokenizer.json not found in GGUF fields.")
+
+    # JSON を一時ファイルとして保存
+    if isinstance(tok_json, bytes):
+        tok_json = tok_json.decode("utf-8")
+
+    tmp_path = "tmp_tokenizer.json"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        f.write(tok_json)
+
+    from transformers import PreTrainedTokenizerFast
+    return PreTrainedTokenizerFast(tokenizer_file=tmp_path)
+
 
 if __name__ == "__main__":
     args = get_args()
