@@ -67,7 +67,8 @@ def load_tokenizer(gguf_path):
         reader = GGUFReader(gguf_path)
         fields = dict(reader.fields)
         tok_json = None
-        for key, (ftype, fval) in fields.items():
+        for key, fval in fields.items():
+        # for key, (ftype, fval) in fields.items():
             if key.startswith("tokenizer.ggml.model"):  # ggufの仕様によってキーは変わる
                 tok_json = fval
                 break
