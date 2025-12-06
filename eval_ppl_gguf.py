@@ -63,28 +63,29 @@ def load_tokenizer(gguf_path):
     from gguf import GGUFReader
     from transformers import PreTrainedTokenizerFast
 
-    try:
-        return AutoTokenizer.from_pretrained(os.path.dirname(gguf_path))
-    except Exception as e:
-        from gguf import GGUFReader
-        import json
-        reader = GGUFReader(gguf_path)
-        fields = dict(reader.fields)
-        tok_json = None
-        for key, field in reader.fields.items():
-            if key.startswith("tokenizer.ggml.model") or key.startswith("tokenizer.ggml.vocab"):
-                if hasattr(field, "data"):
-                    raw = field.data
-                else:
-                    raw = field
-
-                if isinstance(raw, bytes):
-                    tok_json = raw.decode("utf-8")
-                elif isinstance(raw, str):
-                    tok_json = raw
-                else:
-                    raise RuntimeError(f"Unsupported tokenizer field type: {type(raw)}")
-                break
+    # try:
+    #     return AutoTokenizer.from_pretrained(os.path.dirname(gguf_path))
+    # except Exception as e:
+    reader = GGUFReader(gguf_path)
+    fields = dict(reader.fields)
+    tok_json = None
+    for key, field in reader.fields.items():
+        if key.startswith("tokenizer.ggml.model") or key.startswith("tokenizer.ggml.vocab"):
+            if hasattr(field, "data"):
+                raw = field.data
+            else:
+                raw = field
+            if isinstance(raw, list):
+                raw = "\n".join(
+                    (x.decode("utf-8") if isinstance(x, bytes) else str(x))
+                    for x in raw)
+            if isinstance(raw, bytes):
+                tok_json = raw.decode("utf-8")
+            elif isinstance(raw, str):
+                tok_json = raw
+            else:
+                raise RuntimeError(f"Unsupported tokenizer field type: {type(raw)}")
+            break
 
     if tok_json is None:
         raise RuntimeError("tokenizer.json not found in GGUF file.")
