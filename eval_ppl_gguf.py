@@ -60,39 +60,103 @@ def eval_ppl_wikitext_llama_cpp(model, testenc, device=None):
     return ppl.item()
 
 def load_tokenizer(gguf_path):
+    from transformers import AutoTokenizer, PreTrainedTokenizerFast
     from gguf import GGUFReader
-    from transformers import PreTrainedTokenizerFast
 
-    # try:
-    #     return AutoTokenizer.from_pretrained(os.path.dirname(gguf_path))
-    # except Exception as e:
+    model_dir = os.path.dirname(gguf_path)
+
+    # 1. HFフォーマットで読み込める場合はそれを使う
+    try:
+        return AutoTokenizer.from_pretrained(model_dir)
+    except Exception:
+        pass
+
+    # 2. GGUF を読む
     reader = GGUFReader(gguf_path)
-    fields = dict(reader.fields)
-    tok_json = None
-    for key, field in reader.fields.items():
-        if key.startswith("tokenizer.ggml.model") or key.startswith("tokenizer.ggml.vocab"):
-            if hasattr(field, "data"):
-                raw = field.data
-            else:
-                raw = field
-            if isinstance(raw, list):
-                raw = "\n".join(
-                    (x.decode("utf-8") if isinstance(x, bytes) else str(x))
-                    for x in raw)
-            if isinstance(raw, bytes):
-                tok_json = raw.decode("utf-8")
-            elif isinstance(raw, str):
-                tok_json = raw
-            else:
-                raise RuntimeError(f"Unsupported tokenizer field type: {type(raw)}")
-            break
+    fields = reader.fields
 
-    if tok_json is None:
-        raise RuntimeError("tokenizer.json not found in GGUF file.")
-    with open("tmp_tokenizer.json", "w", encoding="utf-8") as f:
-        f.write(tok_json if isinstance(tok_json, str) else tok_json.decode("utf-8"))
-    from transformers import PreTrainedTokenizerFast
-    return PreTrainedTokenizerFast(tokenizer_file="tmp_tokenizer.json")
+    tokenizer_json_raw = None
+    tokens = None
+    scores = None
+    tok_types = None
+    chat_template = None
+
+    # ---- まず tokenizer.json を直接探す ----
+    for key, field in fields.items():
+        raw = field.data if hasattr(field, "data") else field
+
+        if key.startswith("tokenizer.chat_template"):
+            if isinstance(raw, bytes): raw = raw.decode("utf-8")
+            chat_template = raw
+
+        # tokenizer.json が埋め込まれているケース
+        if key.startswith("tokenizer.json"):
+            if isinstance(raw, bytes): raw = raw.decode("utf-8")
+            tokenizer_json_raw = raw
+            print(tokenizer_json_raw)
+
+        # 旧スタイル "tokenizer.ggml.model" など
+        if key.startswith("tokenizer.ggml.model"):
+            # ここは tokenizer.json ではないので無視（数字のみ）
+            continue
+
+        if key == "tokenizer.ggml.tokens":
+            tokens = [
+                (x.decode("utf-8") if isinstance(x, bytes) else str(x))
+                for x in raw
+            ]
+
+        if key == "tokenizer.ggml.scores":
+            scores = raw
+
+        if key == "tokenizer.ggml.token_type":
+            tok_types = raw
+
+    # ---- 3. tokenizer.json が直接入っていればそれを使う ----
+    if tokenizer_json_raw is not None:
+        tmp_path = os.path.join(model_dir, "_tk_tmp.json")
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            f.write(tokenizer_json_raw)
+        tok = PreTrainedTokenizerFast(tokenizer_file=tmp_path)
+        if chat_template:
+            tok.chat_template = chat_template
+        return tok
+
+    # ---- 4. tokenizer.json がない → vocab から作る ----
+    if tokens is None:
+        raise RuntimeError(
+            "GGUF に tokenizer.json も vocab も入っていません。"
+        )
+
+    # safe fallback
+    vocab = {tokens[i]: i for i in range(len(tokens))}
+
+    tokenizer_json = {
+        "version": "1.0",
+        "truncation": None,
+        "padding": None,
+        "added_tokens": [],
+        "normalizer": None,
+        "pre_tokenizer": None,
+        "post_processor": None,
+        "decoder": None,
+        "model": {
+            "type": "llama",
+            "vocab": vocab,
+            "merges": [],
+            "add_prefix_space": False,
+        },
+    }
+
+    tmp_path = os.path.join(model_dir, "_generated_tokenizer.json")
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(tokenizer_json, f, ensure_ascii=False)
+
+    tok = PreTrainedTokenizerFast(tokenizer_file=tmp_path)
+    if chat_template:
+        tok.chat_template = chat_template
+
+    return tok
 
 if __name__ == "__main__":
     args = get_args()
