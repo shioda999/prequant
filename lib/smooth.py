@@ -177,14 +177,15 @@ def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_ac
     def compute_loss(s):
         return quantization_loss_for_smooth(As, Bs, chunk_size, H, s, ignore_act_scale=ignore_act_scale)
     
-    base_loss = compute_loss(torch.ones_like(Bs[0].weight[0]))
+    eps = 1e-3
+    base_loss = compute_loss(torch.ones_like(Bs[0].weight[0])).clamp(min=eps)
     
     def calc_minimum_loss(r):
         loss = (base_loss / base_loss).max(dim=0)[0]#.sum(dim=0)
         p = torch.zeros((num_chunks,), device=device)
         for i in torch.arange(0, 1, 0.05):
             # print(compute_loss(r.pow(i)).shape, base_loss.shape)
-            new_loss = (compute_loss(r.pow(i)) / base_loss).max(dim=0)[0]
+            new_loss = (compute_loss(r.pow(i)).clamp(min=eps) / base_loss).max(dim=0)[0]
             # new_loss = (compute_loss(r.pow(i)) / base_loss).sum(dim=0)
             p = torch.where(new_loss < loss, i, p)
             loss = torch.minimum(new_loss, loss)
@@ -200,7 +201,7 @@ def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_ac
     loss = torch.where(loss < loss2, loss, loss2)
 
     if len(Bs) == 3:
-        print("qkv", loss)
+        print("qkv", loss, s)
 
     # if hasattr(As[0], "act_o_scale") and ignore_act_scale is False:
     #     s2, loss2 = calc_minimum_loss(1 / As[0].act_o_scale)
