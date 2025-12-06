@@ -181,7 +181,7 @@ def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_ac
     
     eps = 1e-3
     base_loss = compute_loss(torch.ones_like(Bs[0].weight[0])).clamp(min=eps)
-    print("base", loss)
+    print("base", base_loss)
     # def compute_loss(s):
     #     return (_compute_loss(As, Bs, chunk_size, H, s, ignore_act_scale=ignore_act_scale).clamp(min=eps) / base_loss).max(dim=0)[0]
     
