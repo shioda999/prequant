@@ -69,7 +69,10 @@ def load_tokenizer(gguf_path):
     try:
         return AutoTokenizer.from_pretrained(model_dir)
     except Exception:
-        pass
+        try:
+            return PreTrainedTokenizerFast(tokenizer_file=f"{model_dir}/tokenizer.json")
+        except Exception:
+            pass
 
     # 2. GGUF を読む
     reader = GGUFReader(gguf_path)
