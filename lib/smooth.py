@@ -18,8 +18,8 @@ def quantization_loss_for_smooth(As, Bs, chunk_size, H, s, ignore_act_scale=Fals
     else:
         sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
         for B in Bs: losses.append(q_err(B.weight / s, scale=s * sa, o_shrink=False, H=H).reshape(-1, B.weight.shape[-1]).sum(dim=0))
-    # loss = torch.stack(losses).max(dim=0)[0]
-    loss = torch.stack(losses).sum(dim=0)
+    loss = torch.stack(losses).max(dim=0)[0]
+    # loss = torch.stack(losses).sum(dim=0)
     return loss.reshape(-1, chunk_size).sum(dim=1)
 
 @torch.no_grad()
