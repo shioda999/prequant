@@ -175,7 +175,7 @@ def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_ac
     H = As[0].rot_mat.to(device) if hasattr(As[0], "rot_mat") else None
     
     def compute_loss(s):
-        return quantization_loss_for_smooth(As, Bs, chunk_size, H, s, ignore_act_scale=ignore_act_scale)
+        return quantization_loss_for_smooth(As, Bs, chunk_size, H, s, ignore_act_scale=ignore_act_scale).max(dim=0)[0]
     
     # eps = 1e-3
     # base_loss = _compute_loss(torch.ones_like(Bs[0].weight[0])).clamp(min=eps)
