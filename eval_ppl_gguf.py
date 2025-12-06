@@ -64,7 +64,29 @@ def load_tokenizer(gguf_path):
     from transformers import PreTrainedTokenizerFast
 
     reader = GGUFReader(gguf_path)
-    print(reader.__dict__)
+    print(list(reader.fields.keys()))
+
+    try:
+        return AutoTokenizer.from_pretrained(os.path.dirname(gguf_path))
+    except Exception as e:
+        from gguf import GGUFReader
+        import json
+        reader = GGUFReader(gguf_path)
+        fields = dict(reader.fields)
+        tok_json = None
+        for item in fields.items():
+            if len(item) == 2: key, (_, fval) = item
+            if len(item) == 3: key, _, fval = item
+            if len(item) >= 2 and key.startswith("tokenizer.ggml.model"):
+                tok_json = fval
+                break
+        if tok_json is None:
+            raise RuntimeError("tokenizer.json not found.")
+
+        with open("tmp_tokenizer.json", "w", encoding="utf-8") as f:
+            f.write(tok_json if isinstance(tok_json, str) else tok_json.decode("utf-8"))
+        from transformers import PreTrainedTokenizerFast
+        return PreTrainedTokenizerFast(tokenizer_file="tmp_tokenizer.json")
 
     # ---- 旧 API: reader.fields にメタデータが全部入っている ----
     # dict: { "tokenizer.ggml.tokens": GGUFValue(...), ... }
