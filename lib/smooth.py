@@ -201,10 +201,10 @@ def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_ac
     if len(Bs) == 3:
         print("qkv", loss.mean().item())
 
-    if hasattr(As[0], "act_o_scale") and ignore_act_scale is False:
-        s2, loss2 = calc_minimum_loss(1 / As[0].act_o_scale)
-        s = torch.where((loss < loss2)[:,None].expand(-1, chunk_size).reshape(-1), s, s2)
-        loss = torch.where(loss < loss2, loss, loss2)
+    # if hasattr(As[0], "act_o_scale") and ignore_act_scale is False:
+    #     s2, loss2 = calc_minimum_loss(1 / As[0].act_o_scale)
+    #     s = torch.where((loss < loss2)[:,None].expand(-1, chunk_size).reshape(-1), s, s2)
+    #     loss = torch.where(loss < loss2, loss, loss2)
 
     # w_b = torch.concat([B.weight for B in Bs]).float()
     # shape = w_b.shape
