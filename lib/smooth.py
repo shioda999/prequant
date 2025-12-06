@@ -205,7 +205,7 @@ def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_ac
 
     if len(Bs) == 3:
         print("qkv", loss.clamp(min=eps).div(base_loss), s)
-        print("act", As[0].act_scale)
+        print("act", As[0].act_scale.max(), As[0].act_scale)
 
     # if hasattr(As[0], "act_o_scale") and ignore_act_scale is False:
     #     s2, loss2 = calc_minimum_loss(1 / As[0].act_o_scale)
