@@ -89,10 +89,10 @@ def load_tokenizer(gguf_path):
 
     if tok_json is None:
         raise RuntimeError("tokenizer.json not found in GGUF file.")
-        with open("tmp_tokenizer.json", "w", encoding="utf-8") as f:
-            f.write(tok_json if isinstance(tok_json, str) else tok_json.decode("utf-8"))
-        from transformers import PreTrainedTokenizerFast
-        return PreTrainedTokenizerFast(tokenizer_file="tmp_tokenizer.json")
+    with open("tmp_tokenizer.json", "w", encoding="utf-8") as f:
+        f.write(tok_json if isinstance(tok_json, str) else tok_json.decode("utf-8"))
+    from transformers import PreTrainedTokenizerFast
+    return PreTrainedTokenizerFast(tokenizer_file="tmp_tokenizer.json")
 
 if __name__ == "__main__":
     args = get_args()
