@@ -176,8 +176,8 @@ def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_ac
     
     def compute_loss(s):
         return quantization_loss_for_smooth(As, Bs, chunk_size, H, s, ignore_act_scale=ignore_act_scale)
-        
-    base_loss = compute_loss(r.pow(0))
+    
+    base_loss = compute_loss(torch.ones_like(Bs[0].weight[0]))
     
     def calc_minimum_loss(r):
         loss = (base_loss / base_loss).max(dim=0)[0]#.sum(dim=0)
