@@ -64,36 +64,36 @@ from transformers import PreTrainedTokenizerFast
 
 def load_tokenizer(gguf_path):
     reader = GGUFReader(gguf_path)
-    meta = {m.name: m.data for m in reader.metadata}
 
-    # ---- tokenizer type ----
-    tok_type = meta.get("tokenizer.ggml.model", meta.get("tokenizer.model", "unknown"))
+    # ---- metadata ----
+    # { "tokenizer.ggml.tokens": [...], "tokenizer.ggml.model": "llama", ... }
+    meta = reader.metadata_kv()
 
-    # ---- vocab (tokens) ----
-    tokens = [t["text"] for t in meta["tokenizer.ggml.tokens"]]
+    # ---- tokens ----
+    tokens = [t["token"] for t in meta["tokenizer.ggml.tokens"]]
 
-    # ---- scores (for sentencepiece) ----
+    # ---- scores (sentencepiece unigram 用) ----
     scores = [t.get("score", 0.0) for t in meta["tokenizer.ggml.tokens"]]
 
-    # ---- merges（BPEなら存在） ----
-    merges = meta.get("tokenizer.ggml.merges", None)
+    # ---- special tokens ----
+    def get_special(name, default=None):
+        tid = meta.get(name, None)
+        if tid is None:
+            return default
+        return tokens[tid]
 
-    # ---- add special tokens ----
-    special_tokens = {}
-    for key, value in meta.items():
-        if key.startswith("tokenizer.ggml.bos_token_id"):
-            special_tokens["bos_token"] = tokens[value]
-        if key.startswith("tokenizer.ggml.eos_token_id"):
-            special_tokens["eos_token"] = tokens[value]
-        if key.startswith("tokenizer.ggml.pad_token_id"):
-            special_tokens["pad_token"] = tokens[value]
+    special_tokens = {
+        "unk_token": get_special("tokenizer.ggml.unk_token_id", "<unk>"),
+        "bos_token": get_special("tokenizer.ggml.bos_token_id", "<s>"),
+        "eos_token": get_special("tokenizer.ggml.eos_token_id", "</s>"),
+        "pad_token": get_special("tokenizer.ggml.pad_token_id", "<pad>"),
+    }
 
-    # ---- tokenizer.json を自動生成し transformers 用に作成 ----
-    # sentencepiece 形式の場合
+    # ---- transformers 用 tokenizer.json 作成 ----
     tokenizer_json = {
         "model": {
             "type": "Unigram",
-            "vocab": [[t, s] for t, s in zip(tokens, scores)],
+            "vocab": [[tok, score] for tok, score in zip(tokens, scores)],
             "unk_id": meta.get("tokenizer.ggml.unk_token_id", 0),
         },
         "normalizer": {"type": "BertNormalizer"},
@@ -102,14 +102,17 @@ def load_tokenizer(gguf_path):
         **special_tokens,
     }
 
-    # 一時的に保存
-    tmp_json = os.path.join(os.path.dirname(gguf_path), "tokenizer_from_gguf.json")
-    with open(tmp_json, "w", encoding="utf-8") as f:
+    # 一時ファイルとして保存
+    tmp_path = os.path.join(os.path.dirname(gguf_path), "tokenizer_from_gguf.json")
+    with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(tokenizer_json, f, ensure_ascii=False, indent=2)
 
-    # transformers の fast tokenizer として読ませる
-    tok = PreTrainedTokenizerFast(tokenizer_file=tmp_json, **special_tokens)
-    return tok
+    # ---- HF fast tokenizer を読み込む ----
+    tokenizer = PreTrainedTokenizerFast(
+        tokenizer_file=tmp_path,
+        **special_tokens,
+    )
+    return tokenizer
 
 if __name__ == "__main__":
     args = get_args()
