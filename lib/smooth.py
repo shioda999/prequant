@@ -7,12 +7,11 @@ import random
 
 def quantization_loss_for_smooth(As, Bs, chunk_size, H, s, ignore_act_scale=False):
     losses = []
-    if False: #hasattr(As[0], "act_scale") and ignore_act_scale is False:
+    if hasattr(As[0], "act_scale") and ignore_act_scale is False:
         sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
         for i, B in enumerate(Bs):
             hamiltonian = getattr(As[0], "H", None)
             if hamiltonian is not None: hamiltonian = s[None] * hamiltonian.to(s.device).float() * s
-            # losses.append(q_err(B.weight / s, scale=s * sa, act_scale=As[0].act_scale, o_shrink=False, H=H, hamiltonian=hamiltonian).reshape(-1, B.weight.shape[-1]).sum(dim=0))
             losses.append(q_err(B.weight / s, scale=s * sa, act_scale=As[0].act_scale.sqrt(), o_shrink=False, H=H, hamiltonian=hamiltonian).reshape(-1, B.weight.shape[-1]).sum(dim=0))
             # loss += q_err(B.weight / s, scale=s, act_scale=B.act_scale, o_shrink=False, H=H, hamiltonian=hamiltonian).reshape(-1, B.weight.shape[-1]).sum(dim=0)
     else:
