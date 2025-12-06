@@ -227,7 +227,7 @@ def calc_quantize_error(model, sz=32, H=None):
         else:
             # err = q_err(m, nbits, scale=norm.weight, t=t, sz=sz, H=H)
             act_scale = norm.act_scale.to(norm.weight.device)
-            err = q_err(m, nbits, scale=norm.weight, act_scale=act_scale, t=t, sz=sz, H=H)
+            err = q_err(m, nbits, scale=norm.weight, act_scale=act_scale.sqrt(), t=t, sz=sz, H=H)
             # err = q_err(m, nbits, act_scale=m.act_scale, t=t, sz=sz, H=H)
         result["!SUM"] += err.sum().item()
         for e in labels:
