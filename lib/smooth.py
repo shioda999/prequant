@@ -177,16 +177,16 @@ def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_ac
     def compute_loss(s):
         return quantization_loss_for_smooth(As, Bs, chunk_size, H, s, ignore_act_scale=ignore_act_scale)
     
-    eps = 1e-3
-    base_loss = compute_loss(torch.ones_like(Bs[0].weight[0])).clamp(min=eps)
+    # eps = 1e-3
+    # base_loss = _compute_loss(torch.ones_like(Bs[0].weight[0])).clamp(min=eps)
+    # def compute_loss(s):
+    #     return (_compute_loss(As, Bs, chunk_size, H, s, ignore_act_scale=ignore_act_scale).clamp(min=eps) / base_loss).max(dim=0)[0]
     
     def calc_minimum_loss(r):
-        loss = (base_loss / base_loss).max(dim=0)[0]#.sum(dim=0)
+        loss = compute_loss(r.pow(0))
         p = torch.zeros((num_chunks,), device=device)
         for i in torch.arange(0, 1, 0.05):
-            # print(compute_loss(r.pow(i)).shape, base_loss.shape)
-            new_loss = (compute_loss(r.pow(i)).clamp(min=eps) / base_loss).max(dim=0)[0]
-            # new_loss = (compute_loss(r.pow(i)) / base_loss).sum(dim=0)
+            new_loss = compute_loss(r.pow(i))
             p = torch.where(new_loss < loss, i, p)
             loss = torch.minimum(new_loss, loss)
         return r.pow(p[:,None].expand(-1, chunk_size).reshape(-1)), loss
