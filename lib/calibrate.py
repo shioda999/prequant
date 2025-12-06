@@ -9,6 +9,7 @@ def get_default_dataset(tokenizer):
     return tokenizer("\n\n".join(testdata['text']), return_tensors='pt')
 
 def rms_div(x):
+    return x
     rms = x.pow(2).mean(dim=-1, keepdim=True).add(1e-8).sqrt()
     return x / rms
 
@@ -32,7 +33,7 @@ def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None, min_v
         comming_l2 = tensor.abs().double().pow(2).mean(dim=0).sqrt().float()
         if name in act_scales:
             nx_cnt = cnt[name] + batch_sz
-            act_scales[name] = (act_scales[name].double().pow(2)*cnt[name]/nx_cnt + comming_l2.double().pow(2)/nx_cnt).sqrt().float()
+            act_scales[name] = (act_scales[name].double().pow(2)/nx_cnt*cnt[name] + comming_l2.double().pow(2)/nx_cnt).sqrt().float()
             if H is not None: Hs[name] = Hs[name] * cnt[name]/nx_cnt + H / nx_cnt
             cnt[name] = nx_cnt
         else:
