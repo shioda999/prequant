@@ -12,12 +12,12 @@ def quantization_loss_for_smooth(As, Bs, chunk_size, H, s, ignore_act_scale=Fals
         for i, B in enumerate(Bs):
             hamiltonian = getattr(As[0], "H", None)
             if hamiltonian is not None: hamiltonian = s[None] * hamiltonian.to(s.device).float() * s
-            sb = B.weight.abs().pow(2).mean(dim=0).pow(0.5)
-            losses.append(q_err(B.weight / s, scale=s * sa, act_scale=As[0].act_scale.sqrt(), o_shrink=False, H=H, hamiltonian=hamiltonian).reshape(-1, B.weight.shape[-1]).div(sb.sqrt()).sum(dim=0))
+            losses.append(q_err(B.weight / s, scale=s * sa, act_scale=As[0].act_scale.sqrt(), o_shrink=False, H=H, hamiltonian=hamiltonian).reshape(-1, B.weight.shape[-1]).sum(dim=0))
             # loss += q_err(B.weight / s, scale=s, act_scale=B.act_scale, o_shrink=False, H=H, hamiltonian=hamiltonian).reshape(-1, B.weight.shape[-1]).sum(dim=0)
     else:
         sa = torch.concat([A.weight[..., None] for A in As], dim=-1).reshape(As[0].weight.shape[0], -1).abs().pow(2).mean(dim=1).pow(0.5)
         for B in Bs: losses.append(q_err(B.weight / s, scale=s * sa, o_shrink=False, H=H).reshape(-1, B.weight.shape[-1]).sum(dim=0))
+    return torch.stack(losses)
     loss = torch.stack(losses).max(dim=0)[0]
     # loss = torch.stack(losses).sum(dim=0)
     return loss.reshape(-1, chunk_size).sum(dim=1)
@@ -176,10 +176,11 @@ def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_ac
         return quantization_loss_for_smooth(As, Bs, chunk_size, H, s, ignore_act_scale=ignore_act_scale)
         
     def calc_minimum_loss(r):
-        loss = compute_loss(r.pow(0))
+        base_loss = compute_loss(r.pow(0))
+        loss = (base_loss / base_loss).sum(dim=0)
         p = torch.zeros((num_chunks,), device=device)
         for i in torch.arange(0, 1, 0.05):
-            new_loss = compute_loss(r.pow(i))
+            new_loss = (compute_loss(r.pow(i)) / base_loss).sum(dim=0)
             p = torch.where(new_loss < loss, i, p)
             loss = torch.minimum(new_loss, loss)
         return r.pow(p[:,None].expand(-1, chunk_size).reshape(-1)), loss
