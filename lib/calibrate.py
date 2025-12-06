@@ -9,9 +9,8 @@ def get_default_dataset(tokenizer):
     return tokenizer("\n\n".join(testdata['text']), return_tensors='pt')
 
 def rms_div(x):
-    return x
-    rms = x.pow(2).mean(dim=-1, keepdim=True).add(1e-8).sqrt()
-    return x / rms
+    rms = x.double().pow(2).mean(dim=-1, keepdim=True).add(1e-8).sqrt()
+    return (x.double() / rms).float()
 
 @torch.no_grad()
 def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None, min_v=None, max_v=None, calc_H=False):
