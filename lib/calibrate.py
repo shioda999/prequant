@@ -8,6 +8,10 @@ def get_default_dataset(tokenizer):
     testdata = load_from_disk("./data/wikitext_test")
     return tokenizer("\n\n".join(testdata['text']), return_tensors='pt')
 
+def rms_div(x):
+    rms = x.pow(2).mean(dim=-1, keepdim=True).add(1e-8).sqrt()
+    return x / rms
+
 @torch.no_grad()
 def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None, min_v=None, max_v=None, calc_H=False):
     if dataset is None: dataset = get_default_dataset(tokenizer)
@@ -38,7 +42,7 @@ def stat_act(model, tokenizer, dataset=None, num_samples=10, seq_len=None, min_v
 
     
     def stat_input_hook(m, x, y, name):
-        stat_tensor(name, x[0] if isinstance(x, tuple) else x)
+        stat_tensor(name, rms_div(x[0] if isinstance(x, tuple) else x))
         stat_tensor(name + "_output", y[0] if isinstance(y, tuple) else y)
     
     hooks = []

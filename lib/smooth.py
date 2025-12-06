@@ -164,10 +164,12 @@ def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_ac
     if device is None: device = get_device()
     for A in As: A.to(device)
     for B in Bs: B.to(device)
+
+    # over flow 回避
     p = 3
     if importance is None: importance = [1 for i in range(len(Bs))]
-    # Bs_scale = [B.weight.float().abs().pow(p).mean().pow(1/p) / imp for B, imp in zip(Bs, importance)]
-    # for B, s in zip(Bs, Bs_scale): B.weight.div_(s)
+    Bs_scale = [B.weight.float().abs().pow(p).mean().pow(1/p) / imp for B, imp in zip(Bs, importance)]
+    for B, s in zip(Bs, Bs_scale): B.weight.div_(s)
     
     dim = Bs[0].weight.shape[-1]
     num_chunks = (dim + chunk_size - 1) // chunk_size
@@ -226,7 +228,7 @@ def smooth_fn_pow(As, Bs, device=None, chunk_size=32, importance=None, ignore_ac
     for B in Bs:
         B.weight.data = B.weight.float().div_(s).to(B.weight.dtype)
         if hasattr(B, "act_scale"): B.act_scale.mul_(s)
-    # for B, s in zip(Bs, Bs_scale): B.weight.mul_(s)
+    for B, s in zip(Bs, Bs_scale): B.weight.mul_(s)
     for A in As: A.cpu()
     for B in Bs: B.cpu()
 
