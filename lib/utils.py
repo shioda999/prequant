@@ -201,8 +201,9 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
     else:
         if act_scale is not None:
             act_scale = act_scale.float().to(delta.device)
-            delta = delta.mul(act_scale)
-            delta2.mul_(act_scale.reshape(-1, sz).pow(2).mean(dim=-1, keepdim=True).sqrt().expand(-1, sz).reshape(act_scale.shape))
+            # delta = delta.mul(act_scale)
+            delta = delta.mul(act_scale.sqrt())
+            # delta2.mul_(act_scale.reshape(-1, sz).pow(2).mean(dim=-1, keepdim=True).sqrt().expand(-1, sz).reshape(act_scale.shape))
             # delta2.mul_(act_scale.to(delta.device).pow(2).mean().sqrt())
         if t is True:
             delta = delta.T
@@ -210,8 +211,8 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
         if H is not None:
             delta = (delta.reshape(-1, H.shape[0]) @ H.T).reshape(delta.shape)
             # delta = (delta.reshape(-1, H.shape[0]).float() @ H).reshape(delta.shape)
-        # loss = delta.pow(2).mean(dim=0)
-        loss = delta.pow(2).mean(dim=0) + delta2.pow(2).mean(dim=0)
+        loss = delta.pow(2).mean(dim=0)
+        # loss = delta.pow(2).mean(dim=0) + delta2.pow(2).mean(dim=0)
         # loss = delta2.pow(2).mean(dim=0)
     if o_shrink:
         loss = loss.reshape(-1, sz).mean(dim=-1)
