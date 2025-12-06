@@ -193,14 +193,14 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
         delta = delta.mul(scale.weight if hasattr(scale, "weight") else scale)
         delta2 = delta
     if hamiltonian is not None and t is False:
-        h = block_diagonalize(hamiltonian)
+        h = block_diagonalize(hamiltonian).to(delta.dtype)
         loss = (delta @ h * delta).mean(dim=0)
         # loss = (delta @ h * delta).sum(dim=-1, keepdim=True).pow(2).mean(dim=0)
         # loss = (delta @ h * delta).sum(dim=-1, keepdim=True).pow(2).mean(dim=0)\
         #     + (w.float() @ h * delta * 2).mean(dim=0)
     else:
         if act_scale is not None:
-            act_scale = act_scale.float().to(delta.device)
+            act_scale = act_scale.to(delta.dtype).to(delta.device)
             delta = delta.mul(act_scale)
             # delta2.mul_(act_scale.reshape(-1, sz).pow(2).mean(dim=-1, keepdim=True).sqrt().expand(-1, sz).reshape(act_scale.shape))
             # delta2.mul_(act_scale.to(delta.device).pow(2).mean().sqrt())
@@ -208,7 +208,7 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
             delta = delta.T
             delta2 = delta2.T
         if H is not None:
-            delta = (delta.reshape(-1, H.shape[0]) @ H.T).reshape(delta.shape)
+            delta = (delta.reshape(-1, H.shape[0]) @ H.T.to(delta.dtype)).reshape(delta.shape)
             # delta = (delta.reshape(-1, H.shape[0]).float() @ H).reshape(delta.shape)
         loss = delta.pow(2).mean(dim=0)
         # loss = delta.pow(2).mean(dim=0) + delta2.pow(2).mean(dim=0)
