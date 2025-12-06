@@ -187,8 +187,8 @@ def q_err(m, nbits=4, sz=32, scale=None, act_scale=None, t=False, H=None, o_shri
     w_q, s = quantize(w, nbits, ste=ste)
     delta = w_q - w
     delta2 = delta
-    delta = delta.float()
-    delta2 = delta2.float()
+    delta = delta.double()
+    delta2 = delta2.double()
     if scale is not None:
         delta = delta.mul(scale.weight if hasattr(scale, "weight") else scale)
         delta2 = delta
